@@ -1,5 +1,8 @@
 using Unity.VisualScripting;
 using UnityEngine;
+using System.IO;
+using System;
+using System.Data;
 
 // Don't forget to change the class name when using this as a template
 // for implementing new objects with custom behaviors
@@ -9,6 +12,7 @@ public class RenderAngularDisplay : MonoBehaviour
     private Material mat;
     private MeshRenderer renderer;
     private Vector3 lastScale;
+    private string logFilePath;
     private static readonly int _Color1 = Shader.PropertyToID("_Color1");
     private static readonly int _Color2 = Shader.PropertyToID("_Color2");
     private static readonly int _Color3 = Shader.PropertyToID("_Color3");
@@ -24,9 +28,25 @@ public class RenderAngularDisplay : MonoBehaviour
     private static readonly int _GratingOrientation1 = Shader.PropertyToID("_GratingOrientation1");
     private static readonly int _GratingOrientation2 = Shader.PropertyToID("_GratingOrientation2");
     private static readonly int _Aspect = Shader.PropertyToID("_Aspect");
-
-
+    private NormalRandom normalRandom = new NormalRandom(12345);
+    private bool _AngularNoiseOn = false;
+    private float _NoiseStd = 0.0F;
+    private int _NoiseFreq = 320; // Number of frames to wait
     private float _SpinSpeed = 100f; // Speed of the rotation in degrees per second
+    
+    public bool AngularNoiseOn{
+        get{ return _AngularNoiseOn;}
+        set{_AngularNoiseOn= value;}
+    }
+
+    public float NoiseStd{
+        get{ return _NoiseStd;}
+        set{_NoiseStd = value;}
+    }
+    public float NoiseFreq{
+        get{ return _NoiseFreq;}
+        set{_NoiseFreq = Mathf.RoundToInt(value);}
+    }
     public float SpinSpeed{
         get { return _SpinSpeed; }
         set { _SpinSpeed = value; }
@@ -39,7 +59,7 @@ public class RenderAngularDisplay : MonoBehaviour
         set { _IsSpinning = value; }
     }
      
-    private bool _Visible = true;
+    private bool _Visible = false;
     public bool Visible 
     {
         get{
@@ -61,6 +81,7 @@ public class RenderAngularDisplay : MonoBehaviour
     void Start()
     {
         #if UNITY_EDITOR
+        
         Vector3 pos=new Vector3(0,0,0);
         Quaternion rot = new Quaternion(0,0,0,1);
         Color white= new Color(1,1,1,1);
@@ -77,7 +98,20 @@ public class RenderAngularDisplay : MonoBehaviour
         {
             Spin();
         }
-      
+
+        
+
+        // if ((Time.frameCount % _NoiseFreq == 0)&_AngularNoiseOn)
+        if (_AngularNoiseOn)
+       
+        {   
+            Vector3 rand_rot=new Vector3 (0, _NoiseStd*(float) normalRandom.NextDouble(),0);
+            transform.rotation=transform.rotation*Quaternion.Euler(rand_rot);
+            Debug.Log(rand_rot);
+            }
+
+        
+       
          if (transform.localScale != lastScale)
          {
             Aspect= transform.localScale.x/transform.localScale.y;
@@ -85,16 +119,32 @@ public class RenderAngularDisplay : MonoBehaviour
             
          }
         
- 
+        LogTransformDetails();
     }
+
+      private void LogTransformDetails()
+    {
+        string logMessage = $"Time: {Time.time}, Position: {transform.position}, Rotation: {transform.rotation}, Scale: {transform.localScale}\n";
+        
+        File.AppendAllText(logFilePath, logMessage);
+    }
+
     
     // OnCreate() is required to properly instantiate the object with the correct properties
     // The method must take the listed inputs -- no more, no less (even if some are not used)
     public void OnCreate(Vector3 position, Quaternion rotation, float height, float radius, Color color)
     {
-        // // Uncomment to yoke the object position to player movement
-        renderer = GetComponent<MeshRenderer>();
+        
+        
+        logFilePath = SetROSBridge.LogFilePath + "_angular_display.csv";
 
+        if (!File.Exists(logFilePath))
+        {
+            File.Create(logFilePath).Close();
+        }
+        
+        renderer = GetComponent<MeshRenderer>();
+        renderer.enabled=false;
         // // Uncomment to add player collisions with this object
         // // Add RigidBody and MeshCollider components, both are required for enabling collisions
         // // Since the ground is not always Active nor collision-enabled,
@@ -123,6 +173,28 @@ public class RenderAngularDisplay : MonoBehaviour
         }
 
     }
+
+  
+
+public class NormalRandom
+{
+    private System.Random random;
+
+    public NormalRandom(int seed)
+    {
+        this.random = new System.Random(seed);
+    }
+
+    public double NextDouble()
+    {
+        // Use Box-Muller transform to generate two independent standard normal distributed numbers
+        double u1 = 1.0 - random.NextDouble(); // Uniform(0,1] random doubles
+        double u2 = 1.0 - random.NextDouble();
+        double randStdNormal = Math.Sqrt(-2.0 * Math.Log(u1)) *
+                     Math.Sin(2.0 * Math.PI * u2); // Random normal(0,1)
+        return randStdNormal;
+    }
+}
     
         public Color Color1
     {
