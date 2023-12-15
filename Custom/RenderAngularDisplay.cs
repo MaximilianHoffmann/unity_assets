@@ -33,7 +33,7 @@ public class RenderAngularDisplay : MonoBehaviour
     private float _NoiseStd = 0.0F;
     private int _NoiseFreq = 320; // Number of frames to wait
     private float _SpinSpeed = 100f; // Speed of the rotation in degrees per second
-    
+    private bool _attachToPlayer = true;
     public bool AngularNoiseOn{
         get{ return _AngularNoiseOn;}
         set{_AngularNoiseOn= value;}
@@ -93,7 +93,8 @@ public class RenderAngularDisplay : MonoBehaviour
     // Update is called once per frame
     void Update()
     {   
-        transform.position = avatar.position;
+        if(_attachToPlayer)
+            {transform.position = avatar.position;}
            if (IsSpinning)
         {
             Spin();
@@ -284,6 +285,11 @@ public class NormalRandom
     {
         get => mat.GetFloat(_Aspect);
         set => mat.SetFloat(_Aspect, value);
+    }
+
+    public bool AttachToPlayer    {
+        get { return _attachToPlayer; }
+        set { _attachToPlayer = value; }
     }
   void Spin()
     {
