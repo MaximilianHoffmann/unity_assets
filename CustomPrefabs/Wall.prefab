@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 606783865967011223}
   - component: {fileID: 2281687939197105643}
   - component: {fileID: 2281687939197105642}
+  - component: {fileID: 4986271941001411922}
   m_Layer: 0
   m_Name: Wall
   m_TagString: Untagged
@@ -110,8 +111,23 @@ MeshCollider:
   m_GameObject: {fileID: 1399289926063309890}
   m_Material: {fileID: 0}
   m_IsTrigger: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 4
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 2534964839176971238, guid: a796fd403d1f5e0228e9110f725702d0, type: 3}
+--- !u!114 &4986271941001411922
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1399289926063309890}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d2e2f51fac73df8fd83acc77f77223f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  colliderRadialPos: 1.1
+  colliderVar: {x: 0.1, y: 0, z: 0.1}
+  colliderSize: {x: 0.3, y: 1, z: 0.3}
