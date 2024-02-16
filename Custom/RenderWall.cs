@@ -88,10 +88,19 @@ public class RenderWall : MonoBehaviour
 
     void resetPosition()
     {
-        Vector3 localPosition = transform.InverseTransformPoint(avatarTransform.position);
+        Vector3 oldPosition = avatarTransform.position;
+        Vector3 localPosition = transform.InverseTransformPoint(oldPosition);
         Vector3 newLocalPosition = new Vector3(localPosition.x*colliderRadius,localPosition.y,localPosition.z*colliderRadius);
         Vector3 newPosition = transform.TransformPoint(newLocalPosition);
         avatarTransform.position = newPosition;
+        double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
+        if (File.Exists(logFilePath)) 
+        { 
+            File.AppendAllText(logFilePath, 
+                $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," + 
+                $"{oldPosition.x:F3},{oldPosition.z:F3},{oldPosition.y:F3}," + 
+                 $"{newPosition.x:F3},{newPosition.z:F3},{newPosition.y:F3}\n" ) ;   }
+
     }
 
     void Update()
@@ -130,7 +139,22 @@ public class RenderWall : MonoBehaviour
 
         }
 
-       
+    
+        string gameObjectName = gameObject.name;
+        
+             
+        
+        logFilePath = SetROSBridge.LogFilePath + "_" + gameObjectName+".csv";
+        if (SetROSBridge.LogFilePath != "")
+        {
+            File.WriteAllText(logFilePath, 
+                "unity_time,last_timestamp," +
+                "old_proper_position_x,old_proper_position_y,old_proper_position_z," +
+                "new_proper_position_x,new_proper_position_y,new_proper_position_z" +
+                "\n");
+        }
+
+ 
         // for (int i = 0; i < 180; i++)
         // {
         //     float angle = i * 2 * Mathf.PI / 180;
