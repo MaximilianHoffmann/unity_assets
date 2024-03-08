@@ -12,6 +12,8 @@ Material:
   m_ValidKeywords: []
   m_InvalidKeywords:
   - _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+  - _SWITCHONGRATING1_ON
+  - _SWITCHONGRATING2_ON
   - _SWITCHONGRATING_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -28,20 +30,20 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _AngularDistance: 0.5
-    - _AngularSize1: 0.5
-    - _AngularSize2: 0.5
-    - _Aspect: 1
-    - _CapThreshold: 0.9
-    - _GratingFrequency1: 10
-    - _GratingFrequency2: 10
-    - _GratingOrientation1: 0
+    - _AngularDistance: 0.48
+    - _AngularSize1: 0.48
+    - _AngularSize2: 0.48
+    - _Aspect: 98.7
+    - _CapThreshold: 0.897
+    - _GratingFrequency1: 1
+    - _GratingFrequency2: 32.3
+    - _GratingOrientation1: 38.1
     - _GratingOrientation2: 0
     - _Offset: 0
-    - _SwitchOnGrating1: 0
-    - _SwitchOnGrating2: 0
+    - _SwitchOnGrating1: 1
+    - _SwitchOnGrating2: 1
     m_Colors:
     - _Color1: {r: 1, g: 1, b: 1, a: 1}
     - _Color2: {r: 0, g: 0, b: 0, a: 1}
-    - _Color3: {r: 0, g: 0, b: 0, a: 1}
+    - _Color3: {r: 0.9936328, g: 0, b: 1, a: 1}
   m_BuildTextureStacks: []

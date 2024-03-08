@@ -8,13 +8,16 @@ Shader "Custom/RoomExitShader" {
         _AngularSize2 ("Size Of Zone2", Range(0,1)) = 0.5
         _AngularDistance ("Distance Zones", Range(0,1)) = 0.5
         _Offset ("Angular Offset", Range(0,1)) = 0.
+        [MaterialToggle] _SwitchOnNoise1 ( "Switch On Noise1", Float ) = 0
         [MaterialToggle] _SwitchOnGrating1 ( "Switch On Grating1", Float ) = 0
         [MaterialToggle] _SwitchOnGrating2 ( "Switch On Grating2", Float ) = 0
-        _GratingFrequency1 ("Grating Frequency1", Range(1, 50)) = 10
-        _GratingFrequency2 ("Grating Frequency2", Range(1, 50)) = 10
+        _GratingFrequency1 ("Grating Frequency1", Range(1, 300)) = 10
+        _GratingFrequency2 ("Grating Frequency2", Range(1, 300)) = 10
         _GratingOrientation1 ("Grating Orientation1", Range(0, 90)) = 0
         _GratingOrientation2 ("Grating Orientation2", Range(0, 90)) = 0
         _Aspect ("Cylinder Aspect", Range(0.001, 100)) = 1
+        _GridSize_X("Grid Size X", Float) = 1.0
+        _GridSize_Y("Grid Size Y", Float) = 1.0 
         }
 
     SubShader {
@@ -36,6 +39,7 @@ Shader "Custom/RoomExitShader" {
             float4 _Color3;
             float _Ratio;
             float _Offset;
+            float _SwitchOnNoise1;
             float _SwitchOnGrating1;
             float _SwitchOnGrating2;
             float _GratingFrequency1;
@@ -47,6 +51,15 @@ Shader "Custom/RoomExitShader" {
             float _AngularDistance;
             float _MaxDistance;
             float _Aspect;
+            float _GridSize_X;
+            float _GridSize_Y;
+
+            float rand(float2 p) 
+            {
+                p = 50.0 * frac(p * 0.3183099 + float2(sin(p.x), cos(p.y)));
+                return  frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453123);
+            }
+
          
 
             struct appdata {
@@ -118,14 +131,23 @@ Shader "Custom/RoomExitShader" {
                 gratingColor = _Color3;
 
                 if (inZone1) {
+                    gratingColor = _Color1;
+                    if (_SwitchOnNoise1>0.5){
+
+                    int segment = int(floor((gratingCoord1 + 3.14159) / (3.14159 / (1.0/_GridSize_X)))); // 20 segments for 360 degrees
+                    int verticalSegment = int(floor((i.localPos.y +1)/ _GridSize_Y));
+                    float combinedSegments = float(0.00001*segment + 0.001*verticalSegment);
+                    float randomValue=rand(combinedSegments);
+                    fixed4 color = fixed4(randomValue, randomValue, randomValue, 1.0);
+                    gratingColor = color;
+                      
+                    };
                     if (_SwitchOnGrating1 > 0.5) {
                  
                             gratingValue = frac(gratingCoord1* _GratingFrequency1);
                             gratingColor = lerp(_Color1, _Color2, gratingValue > 0.5 ? 1 : 0);
                         }
-                    else {
-                        gratingColor = _Color1;
-                    }
+                
                             }
 
                 if (inZone2) {   

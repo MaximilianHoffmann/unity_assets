@@ -37,7 +37,7 @@ public class RenderWall : MonoBehaviour
             _EncloseFlag=value;
         }
     }
-    
+    [SerializeField]
     private bool _Visible = false;
     public bool Visible
 
@@ -59,14 +59,14 @@ public class RenderWall : MonoBehaviour
        
     void Start()
     {
-        #if UNITY_EDITOR
+        // #if UNITY_EDITOR
         
-        Vector3 pos=new Vector3(0,0,0);
-        Quaternion rot = new Quaternion(0,0,0,1);
-        Color white= new Color(1,1,1,1);
-        OnCreate(pos,rot,40,40,white);
-        renderer.enabled = true;
-        #endif
+        // Vector3 pos=new Vector3(0,0,0);
+        // Quaternion rot = new Quaternion(0,0,0,1);
+        // Color white= new Color(1,1,1,1);
+        // OnCreate(pos,rot,40,40,white);
+        // renderer.enabled = true;
+        // #endif
      
     }
 
@@ -76,6 +76,7 @@ public class RenderWall : MonoBehaviour
         Vector3 localPosition = transform.InverseTransformPoint(avatarTransform.position);
         float norm = Mathf.Sqrt(localPosition.x*localPosition.x + localPosition.z*localPosition.z);
         Debug.Log("Relative Position of avatar in enclusore" + localPosition);
+        Debug.Log("Norm old" + norm);
         if (norm > colliderRadius)
         {
             return true;
@@ -86,11 +87,13 @@ public class RenderWall : MonoBehaviour
         }
     }
 
-    void resetPosition()
+      void WallCollide()
     {
         Vector3 oldPosition = avatarTransform.position;
         Vector3 localPosition = transform.InverseTransformPoint(oldPosition);
-        Vector3 newLocalPosition = new Vector3(localPosition.x*colliderRadius,localPosition.y,localPosition.z*colliderRadius);
+        (float r, float theta) =CartesianToPolar(localPosition.x,localPosition.z);
+        Vector3 newLocalPosition = new Vector3(MathF.Sin(theta)*colliderRadius,localPosition.y,-MathF.Cos(theta)*colliderRadius);
+        Debug.Log("NewLocalPosition: " + newLocalPosition + " OldLocalPosition: " + localPosition + " Norm: " +  Mathf.Sqrt(newLocalPosition.x*newLocalPosition.x + newLocalPosition.z*newLocalPosition.z));
         Vector3 newPosition = transform.TransformPoint(newLocalPosition);
         avatarTransform.position = newPosition;
         double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
@@ -103,6 +106,7 @@ public class RenderWall : MonoBehaviour
 
     }
 
+
     void Update()
     {        
     
@@ -113,7 +117,7 @@ public class RenderWall : MonoBehaviour
     if (outside)
      {
         Debug.Log("RESET POSITION");
-        resetPosition();
+        WallCollide();
      }  
     }
     }

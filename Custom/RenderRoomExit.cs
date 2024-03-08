@@ -6,6 +6,7 @@ using System.Collections;
 using Unity.Robotics.ROSTCPConnector;
 using RosMessageTypes.UnityVrDriverInterfaces;
 using UnityEngine.UIElements;
+using System.Threading.Tasks;
 
 public class RenderRoomExit: MonoBehaviour
 {
@@ -18,8 +19,7 @@ public class RenderRoomExit: MonoBehaviour
     private MeshRenderer renderer;
     private Vector3 lastScale;
     private string logFilePath;
-
-    public static double LastTimestamp = -1; 
+    private string logFilePathTask;
     private static readonly int _Color1 = Shader.PropertyToID("_Color1");
     private static readonly int _Color2 = Shader.PropertyToID("_Color2");
     private static readonly int _Color3 = Shader.PropertyToID("_Color3");
@@ -30,6 +30,9 @@ public class RenderRoomExit: MonoBehaviour
     private static readonly int _Offset = Shader.PropertyToID("_Offset");
     private static readonly int _SwitchOnGrating1 = Shader.PropertyToID("_SwitchOnGrating1");
     private static readonly int _SwitchOnGrating2 = Shader.PropertyToID("_SwitchOnGrating2");
+    private static readonly int _SwitchOnNoise1 = Shader.PropertyToID("_SwitchOnNoise1");
+    private static readonly int _GridSize_X= Shader.PropertyToID("_GridSize_X");
+    private static readonly int _GridSize_Y= Shader.PropertyToID("_GridSize_Y");
     private static readonly int _GratingFrequency1 = Shader.PropertyToID("_GratingFrequency1");
     private static readonly int _GratingFrequency2 = Shader.PropertyToID("_GratingFrequency2");
     private static readonly int _GratingOrientation1 = Shader.PropertyToID("_GratingOrientation1");
@@ -37,6 +40,8 @@ public class RenderRoomExit: MonoBehaviour
     private static readonly int _Aspect = Shader.PropertyToID("_Aspect");
     private NormalRandom normalRandom = new NormalRandom(12345);
 
+    
+    private bool _TrialEnded = false;
     public bool TrialEnded
     {
         get { return _TrialEnded; }
@@ -53,7 +58,18 @@ public class RenderRoomExit: MonoBehaviour
             }
         }
     }
-    private bool _TrialEnded = false;
+
+    private bool _TaskActive= false;
+    public bool TaskActive
+    {
+        get { return _TaskActive; } 
+        set{
+            _TaskActive=value;
+            if (!value){
+                StopCoroutine(ScheduleTrial());
+            }
+            }
+        }
     private ushort trialNumber = 0;
     public string taskName="confined_exit";
     [SerializeField]
@@ -74,7 +90,7 @@ public class RenderRoomExit: MonoBehaviour
     }
 
     [SerializeField]
-    private bool _EncloseFlag = true;
+    private bool _EncloseFlag = false;
     private bool _attachToPlayer = false;
     
     public bool EncloseFlag
@@ -132,9 +148,13 @@ public class RenderRoomExit: MonoBehaviour
 
 
         float norm = Mathf.Sqrt(localPosition.x*localPosition.x + localPosition.z*localPosition.z);
-        float ang_distance = (theta+MathF.PI)-((Mathf.PI+ExitLocation*2*Mathf.PI)%(2*Mathf.PI));
-        // Debug.Log("Relative Position of avatar in enclosure" + localPosition);
-        // Debug.Log("Theta: " + theta);
+        // #float exit_to_theta=(ExitLocation*2*Mathf.PI + Mathf.PI)% (2*Mathf.PI)-Mathf.PI;
+        float theta_two_pi=(theta+2*Mathf.PI)%(2*Mathf.PI);
+        float ang_distance = Mathf.Abs(Mathf.Asin(MathF.Sin(theta_two_pi-ExitLocation*2*Mathf.PI)));
+
+
+        // Debug.Log("Relative Position wof avatar in enclosure" + localPosition);
+        Debug.Log("Theta: " + theta);
         Debug.Log("Angular Deviation From Exit: " +  ang_distance+ "  Allowed Deviation:"+(ExitSize*Mathf.PI));
      
         if (norm > colliderRadius)
@@ -189,22 +209,19 @@ public class RenderRoomExit: MonoBehaviour
                 WallCollide();
             }  
             }
-
-           PublishVRTaskMsg(); 
-
+        if (TaskActive){
+            PublishVRTaskMsg();
+        }
+         
            }
 
     public void OnCreate(Vector3 position, Quaternion rotation, float height, float radius, Color color)
     {
         
         SetupPublisher();
-        logFilePath = SetROSBridge.LogFilePath + "_angular_display.csv";
+     
 
-        if (!File.Exists(logFilePath))
-        {
-            File.Create(logFilePath).Close();
-        }
-        
+
         renderer = GetComponent<MeshRenderer>();
         renderer.enabled=false;
       
@@ -224,7 +241,7 @@ public class RenderRoomExit: MonoBehaviour
         string gameObjectName = gameObject.name;
 
               
-        logFilePath = SetROSBridge.LogFilePath + "_" + gameObjectName+".csv";
+        logFilePath = SetROSBridge.LogFilePath + "_" + gameObjectName+"_resets.csv";
         if (SetROSBridge.LogFilePath != "")
         {
             File.WriteAllText(logFilePath, 
@@ -233,6 +250,9 @@ public class RenderRoomExit: MonoBehaviour
                 "new_proper_position_x,new_proper_position_y,new_proper_position_z" +
                 "\n");
         }
+
+
+
 
  
         
@@ -330,6 +350,12 @@ public class NormalRandom
         get => mat.GetFloat(_SwitchOnGrating1) > 0.5f;
         set => mat.SetFloat(_SwitchOnGrating1, value ? 1.0f : 0.0f);
     }
+    public bool SwitchOnNoise1
+    {
+        get => mat.GetFloat(_SwitchOnNoise1) > 0.5f;
+        set => mat.SetFloat(_SwitchOnNoise1, value ? 1.0f : 0.0f);
+    }
+   
 
     public bool SwitchOnGrating2
     {
@@ -347,6 +373,17 @@ public class NormalRandom
     {
         get => mat.GetFloat(_GratingFrequency2);
         set => mat.SetFloat(_GratingFrequency2, value);
+    }
+
+    public float GridSizeX
+    {
+        get => mat.GetFloat(_GridSize_X);
+        set => mat.SetFloat(_GridSize_X, value);
+    }
+    public float GridSizeY
+    {
+        get => mat.GetFloat(_GridSize_Y);
+        set => mat.SetFloat(_GridSize_Y, value);
     }
 
     public float GratingOrientation1
@@ -412,6 +449,14 @@ void SetupPublisher(){
     }
     
     rosConnection.RegisterPublisher<VRTaskMsg>(vrTaskTopic);
+
+
+    logFilePathTask = SetROSBridge.LogFilePath + "_" +  gameObject.name+"_task.csv";
+        if (SetROSBridge.LogFilePath != "")
+        {
+            File.WriteAllText(logFilePathTask, 
+               "task_name,trial_number,trial_ended,local_x,local_y,exit_on,exit_size,exit_angle,enclosure_radius\n");
+        }
         
     // logFilePath = SetROSBridge.LogFilePath + "_vrtask.csv";
     // if (SetROSBridge.LogFilePath != "")
@@ -441,24 +486,26 @@ public void PublishVRTaskMsg()
             data=  new float[] { localPosition.x ,localPosition.z, ExitOn ? 1f : 0f, ExitSize, ExitLocation, transform.localScale.x}
 
         };
-        vrTask.header.stamp.sec = (int)Math.Truncate(LastTimestamp);
-        vrTask.header.stamp.nanosec = (uint)((LastTimestamp - Math.Truncate(LastTimestamp)) * 1e9);
+
+
+
+        vrTask.header.stamp.sec = (int)Math.Truncate(PublishVRPosition.LastTimestamp);
+        vrTask.header.stamp.nanosec = (uint)((PublishVRPosition.LastTimestamp - Math.Truncate(PublishVRPosition.LastTimestamp)) * 1e9);
         vrTask.header.frame_id = Time.frameCount.ToString();
         rosConnection.Publish(vrTaskTopic, vrTask);
         
-    //     if (File.Exists(logFilePath)) 
-    //     { 
-    //         File.AppendAllText(logFilePath, 
-    //             $"{vrProperPosition.unity_time:F3},{LastTimestamp:F3}," + 
-    //             $"{currentPosition.x:F3},{currentPosition.z:F3},{currentPosition.y:F3}," + 
-    //             $"{currentRotation.z:F3},{LastHeading:F3}," +
-    //             $"{LastMotionMsg.x:F3},{LastMotionMsg.y:F3}," +
-    //             $"{LastPositionMsg.x:F3},{LastPositionMsg.y:F3}\n");
-    //     }
+        if (File.Exists(logFilePathTask)) 
+        { 
+            File.AppendAllText(logFilePathTask, 
+                $"{taskName},{trialNumber},{_TrialEnded},{localPosition.x:F3},{localPosition.z:F3},{ExitOn},{ExitSize:F3},{ExitLocation:F3},{transform.localScale.x:F3}\n");
+        }
     }
 
 void StartTrial()
 {
+    if(TaskActive){
+        
+    
     trialNumber += 1;
     _TrialEnded = false;
     EncloseFlag=true;
@@ -469,6 +516,7 @@ void StartTrial()
     float[] values = {0f, 0.25f, 0.5f, 0.75f};
     int index = UnityEngine.Random.Range(0, values.Length);
     ExitLocation = values[index];//UnityEngine.Random.Range(0.0f,1.0f);
+    Debug.Log("Trial Startet");
     Debug.Log("ExitLocation: " + ExitLocation);
 
     Vector3 oldPosition = avatarTransform.position;
@@ -477,12 +525,13 @@ void StartTrial()
     Vector3 newPosition = transform.TransformPoint(newLocalPosition);
     avatarTransform.position = newPosition;
     double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
-    if (File.Exists(logFilePath)) 
-    { 
-        File.AppendAllText(logFilePath, 
-            $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," + 
-            $"{oldPosition.x:F3},{oldPosition.z:F3},{oldPosition.y:F3}," + 
-                $"{newPosition.x:F3},{newPosition.z:F3},{newPosition.y:F3}\n" ) ; 
+    // if (File.Exists(logFilePath)) 
+    // { 
+    //     File.AppendAllText(logFilePath, 
+    //         $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," + 
+    //         $"{oldPosition.x:F3},{oldPosition.z:F3},{oldPosition.y:F3}," + 
+    //             $"{newPosition.x:F3},{newPosition.z:F3},{newPosition.y:F3}\n" ) ; 
+    // }
     }
 }
 
@@ -490,6 +539,7 @@ void CompleteTrial(){
     _TrialEnded = true;
     EncloseFlag=false;
     Visible=false;
+    Debug.Log("Trial Ended");
     StartCoroutine(ScheduleTrial());
 }
 

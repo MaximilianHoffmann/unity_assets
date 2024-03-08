@@ -10,9 +10,7 @@ Material:
   m_Name: RoomExitMat
   m_Shader: {fileID: 4800000, guid: 93d966714d3e3e3d2a00eeee81c8fdda, type: 3}
   m_ValidKeywords: []
-  m_InvalidKeywords:
-  - _SWITCHONGRATING1_ON
-  - _SWITCHONGRATING2_ON
+  m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -72,10 +70,12 @@ Material:
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
-    - _GratingFrequency1: 25
-    - _GratingFrequency2: 35.8
+    - _GratingFrequency1: 65
+    - _GratingFrequency2: 196.7
     - _GratingOrientation1: 0
     - _GratingOrientation2: 90
+    - _GridSize_X: 0.002
+    - _GridSize_Y: 0.05
     - _Metallic: 0
     - _Mode: 0
     - _OcclusionStrength: 1
@@ -84,8 +84,9 @@ Material:
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
-    - _SwitchOnGrating1: 1
-    - _SwitchOnGrating2: 1
+    - _SwitchOnGrating1: 0
+    - _SwitchOnGrating2: 0
+    - _SwitchOnNoise1: 0
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:
