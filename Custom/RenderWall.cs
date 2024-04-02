@@ -14,8 +14,24 @@ public class RenderWall : MonoBehaviour
     private Vector3 lastScale;
     private string logFilePath;
     private static readonly int _TimeStep = Shader.PropertyToID("_TimeStep");
-
-    public float colliderRadius = 0.95f;
+    
+    
+    
+    [SerializeField]
+    private float _ColliderRadius = 0.95f;
+    public float ColliderRadius
+    {
+        get => _ColliderRadius;
+        set => _ColliderRadius = value;
+    }
+     
+    [SerializeField]
+    private float _ResetRadius = 0.95f;
+    public float ResetRadius
+    {
+        get => _ResetRadius;
+        set => _ResetRadius = value;
+    }
    
     public float TimeStep
         {
@@ -77,7 +93,7 @@ public class RenderWall : MonoBehaviour
         float norm = Mathf.Sqrt(localPosition.x*localPosition.x + localPosition.z*localPosition.z);
         Debug.Log("Relative Position of avatar in enclusore" + localPosition);
         Debug.Log("Norm old" + norm);
-        if (norm > colliderRadius)
+        if (norm > _ColliderRadius)
         {
             return true;
         }
@@ -92,7 +108,7 @@ public class RenderWall : MonoBehaviour
         Vector3 oldPosition = avatarTransform.position;
         Vector3 localPosition = transform.InverseTransformPoint(oldPosition);
         (float r, float theta) =CartesianToPolar(localPosition.x,localPosition.z);
-        Vector3 newLocalPosition = new Vector3(MathF.Sin(theta)*colliderRadius,localPosition.y,-MathF.Cos(theta)*colliderRadius);
+        Vector3 newLocalPosition = new Vector3(MathF.Sin(theta)*ColliderRadius,localPosition.y,-MathF.Cos(theta)*_ResetRadius);
         Debug.Log("NewLocalPosition: " + newLocalPosition + " OldLocalPosition: " + localPosition + " Norm: " +  Mathf.Sqrt(newLocalPosition.x*newLocalPosition.x + newLocalPosition.z*newLocalPosition.z));
         Vector3 newPosition = transform.TransformPoint(newLocalPosition);
         avatarTransform.position = newPosition;
