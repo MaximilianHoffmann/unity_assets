@@ -5,7 +5,7 @@ using System;
 using System.Data;
 using UnityEngine.Rendering;
 
-public class RenderWallReiser : MonoBehaviour
+public class RenderWallSquare : MonoBehaviour
 {
     private Transform avatarTransform;
     private GameObject avatar;
@@ -78,9 +78,9 @@ public class RenderWallReiser : MonoBehaviour
     bool evaluateEnclosure()
     {
         Vector3 localPosition = transform.InverseTransformPoint(avatarTransform.position);
-        float norm = Mathf.Sqrt(localPosition.x * localPosition.x + localPosition.z * localPosition.z);
-        Debug.Log("Relative Position of avatar in enclusore" + localPosition);
-        if (norm > colliderRadius)
+        //float norm = Mathf.Sqrt(localPosition.x * localPosition.x + localPosition.z * localPosition.z);
+        //Debug.Log("Relative Position of avatar in enclusore" + localPosition);
+        if ((Mathf.Abs(localPosition.x) > colliderRadius) | (Mathf.Abs(localPosition.z) > colliderRadius))
         {
             return true;
         }
@@ -93,9 +93,8 @@ public class RenderWallReiser : MonoBehaviour
     void resetPosition()
     {
         Vector3 localPosition = transform.InverseTransformPoint(avatarTransform.position);
-        float norm = Mathf.Sqrt(localPosition.x * localPosition.x + localPosition.z * localPosition.z);
-        Vector3 newLocalPosition = new Vector3(localPosition.x / norm * colliderRadius, localPosition.y, localPosition.z / norm * colliderRadius);
-        //Vector3 newLocalPosition = new Vector3(localPosition.x * colliderRadius, localPosition.y, localPosition.z * colliderRadius);
+        //float norm = Mathf.Sqrt(localPosition.x * localPosition.x + localPosition.z * localPosition.z);
+        Vector3 newLocalPosition = new Vector3(localPosition.x * colliderRadius, localPosition.y, localPosition.z * colliderRadius);
         Vector3 newPosition = transform.TransformPoint(newLocalPosition);
         Debug.Log("Collider Radius" + colliderRadius);
         Debug.Log("New Local Position" + newLocalPosition);
