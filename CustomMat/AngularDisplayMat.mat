@@ -30,20 +30,20 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _AngularDistance: 0.48
-    - _AngularSize1: 0.48
-    - _AngularSize2: 0.48
-    - _Aspect: 98.7
-    - _CapThreshold: 0.897
+    - _AngularDistance: 0.3
+    - _AngularSize1: 0.052
+    - _AngularSize2: 0.294
+    - _Aspect: 90
+    - _CapThreshold: 0.874
     - _GratingFrequency1: 1
-    - _GratingFrequency2: 32.3
-    - _GratingOrientation1: 38.1
-    - _GratingOrientation2: 0
-    - _Offset: 0
+    - _GratingFrequency2: 23.8
+    - _GratingOrientation1: 31.9
+    - _GratingOrientation2: 0.5
+    - _Offset: 0.212
     - _SwitchOnGrating1: 1
     - _SwitchOnGrating2: 1
     m_Colors:
     - _Color1: {r: 1, g: 1, b: 1, a: 1}
     - _Color2: {r: 0, g: 0, b: 0, a: 1}
-    - _Color3: {r: 0.9936328, g: 0, b: 1, a: 1}
+    - _Color3: {r: 0.73291206, g: 0.8490566, b: 0.756141, a: 1}
   m_BuildTextureStacks: []
