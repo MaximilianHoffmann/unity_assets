@@ -5,7 +5,7 @@ using UnityEngine;
 public class RenderGroundV2 : MonoBehaviour
 {
     [SerializeField] private GameObject groundTilePrefab;
-    [SerializeField] private GameObject avatar;
+    [SerializeField] private Transform avatar;
     [SerializeField] private int gridShape;
     [SerializeField] private float tileScale;
     private float tileSize;
@@ -35,33 +35,26 @@ public class RenderGroundV2 : MonoBehaviour
 
     // Start is called before the first frame update
     void Start()
-
-    
     {
-        // #if UNITY_EDITOR
-        //     mat = groundTilePrefab.GetComponentInChildren<MeshRenderer>().sharedMaterial;
-        //     playerPosition = avatar.transform.position;
-        //     gridCenterPosition = playerPosition;
-        //     gridCenterPosition.y = 0;
-        //     GridShape = gridShape;
-        //     Size = tileScale;
-
-        //     SetObjectsVisibility(false);
-        //     playerPosition = avatar.transform.position;
-        //     gridCenterPosition = playerPosition;
-        //     gridCenterPosition.y = 0;
-        //     // Size = radius;
-        //     mat = groundTilePrefab.GetComponentInChildren<MeshRenderer>().sharedMaterial;
-        //     // Color = color;
-        
-        // #endif
+        mat = groundTilePrefab.GetComponentInChildren<MeshRenderer>().sharedMaterial;
+        playerPosition = avatar.position;
+        gridCenterPosition = playerPosition;
+        gridCenterPosition.y = 0;
+        GridShape = gridShape;
+        Size = tileScale;
     }
 
     // Update is called once per frame
     void Update()
     {
-        playerPosition = avatar.transform.position; 
-        if (playerPosition.z > gridCenterPosition.z + tileSize/2.0f)
+        playerPosition = avatar.position;
+        if ((playerPosition - gridCenterPosition).magnitude > tileSize * gridShape/2)
+        {
+            gridCenterPosition = playerPosition;
+            gridCenterPosition.y = 0;
+            PaveNewGround();
+        }
+        else if (playerPosition.z > gridCenterPosition.z + tileSize/2.0f)
         {
             ShiftGridUp();
         }
@@ -79,16 +72,14 @@ public class RenderGroundV2 : MonoBehaviour
         }
     }
 
-    public void OnCreate(Vector3 position, Quaternion rotation, float height, float radius, Color color)
+    public void OnCreate(Vector3 position, Quaternion rotation, Vector3 scale, Color color, 
+        params KeyValuePair<string, object>[] kwargs)
     {
-
-        mat = groundTilePrefab.GetComponentInChildren<MeshRenderer>().sharedMaterial;
-        avatar= GameObject.Find("Avatar");
-        SetObjectsVisibility(false);
-        playerPosition = avatar.transform.position;
+        playerPosition = avatar.position;
         gridCenterPosition = playerPosition;
+        SetObjectsVisibility(false);
         gridCenterPosition.y = 0;
-        Size = radius;
+        Size = scale.x;
         mat = groundTilePrefab.GetComponentInChildren<MeshRenderer>().sharedMaterial;
         Color = color;
     }

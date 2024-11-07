@@ -15,9 +15,10 @@ Shader "Custom/RectangularDisplayShader"
 
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
+        Tags { "RenderType"="Transparent" "Queue"="Transparent" }
         LOD 100
 
+        Blend SrcAlpha OneMinusSrcAlpha // Enable transparency
         Cull Off // Turning off culling
 
         Pass
@@ -56,40 +57,41 @@ Shader "Custom/RectangularDisplayShader"
                 o.uv = v.uv;
                 return o;
             }
-        half4 frag (v2f i) : SV_Target
-        {
-            half2 uv = i.uv - half2(0.5, 0.5); // Centering the UV coordinates
 
-            // Rotate the UV coordinates if necessary
-            float radians = _Rotation * 3.14159 / 180.0;
-            half2 rotatedUV;
-            rotatedUV.x = uv.x * cos(radians) - uv.y * sin(radians);
-            rotatedUV.y = uv.x * sin(radians) + uv.y * cos(radians);
-            uv = rotatedUV + half2(0.5, 0.5); // Re-centering after rotation
-
-            half4 color = _Color1;
-
-            // Check if grating should be displayed
-            if (_SwitchOnGrating > 0.5) // A threshold greater than 0.5 indicates the grating is on
+            half4 frag (v2f i) : SV_Target
             {
-                // Calculate 1D grating effect along the horizontal axis
-                half gratingEffect = sin(uv.x * _GratingDensity * 3.14159 * 2);
-                color = lerp(_Color1, _Color2, step(0.0, gratingEffect)); // Lerp between main and plus color based on grating effect
-            }
-            else
-            {
-                // Draw cross
-                if ((uv.x > 0.5 - _HorizontalArmThickness && uv.x < 0.5 + _HorizontalArmThickness && 
-                     uv.y > 0.5 - _HorizontalArmLength * 0.5 && uv.y < 0.5 + _HorizontalArmLength * 0.5) || 
-                    (uv.y > 0.5 - _VerticalArmThickness && uv.y < 0.5 + _VerticalArmThickness &&
-                     uv.x > 0.5 - _VerticalArmLength * 0.5 && uv.x < 0.5 + _VerticalArmLength * 0.5))
+                half2 uv = i.uv - half2(0.5, 0.5); // Centering the UV coordinates
+
+                // Rotate the UV coordinates if necessary
+                float radians = _Rotation * 3.14159 / 180.0;
+                half2 rotatedUV;
+                rotatedUV.x = uv.x * cos(radians) - uv.y * sin(radians);
+                rotatedUV.y = uv.x * sin(radians) + uv.y * cos(radians);
+                uv = rotatedUV + half2(0.5, 0.5); // Re-centering after rotation
+
+                half4 color = _Color1;
+
+                // Check if grating should be displayed
+                if (_SwitchOnGrating > 0.5) // A threshold greater than 0.5 indicates the grating is on
                 {
-                    color = _Color2;
+                    // Calculate 1D grating effect along the horizontal axis
+                    half gratingEffect = sin(uv.x * _GratingDensity * 3.14159 * 2);
+                    color = lerp(_Color1, _Color2, step(0.0, gratingEffect)); // Lerp between main and plus color based on grating effect
                 }
-            }
+                else
+                {
+                    // Draw cross
+                    if ((uv.x > 0.5 - _HorizontalArmThickness && uv.x < 0.5 + _HorizontalArmThickness && 
+                         uv.y > 0.5 - _HorizontalArmLength * 0.5 && uv.y < 0.5 + _HorizontalArmLength * 0.5) || 
+                        (uv.y > 0.5 - _VerticalArmThickness && uv.y < 0.5 + _VerticalArmThickness &&
+                         uv.x > 0.5 - _VerticalArmLength * 0.5 && uv.x < 0.5 + _VerticalArmLength * 0.5))
+                    {
+                        color = _Color2;
+                    }
+                }
 
-            return color;
-        }
+                return color;
+            }
             ENDCG
         }
     }

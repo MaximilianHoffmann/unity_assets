@@ -10,8 +10,7 @@ Material:
   m_Name: RectangularDisplayMat
   m_Shader: {fileID: 4800000, guid: c34c699ed6f8d47bb97533130fd7122e, type: 3}
   m_ValidKeywords: []
-  m_InvalidKeywords:
-  - _SWITCHONGRATING_ON
+  m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -25,15 +24,15 @@ Material:
     m_Floats:
     - _BoundaryThickness: 0
     - _GratingDensity: 0
-    - _HorizontalArmLength: 0.707
-    - _HorizontalArmThickness: 0.03
+    - _HorizontalArmLength: 0.179
+    - _HorizontalArmThickness: 0.5
     - _PlusThickness: 0.05
-    - _Rotation: 0
-    - _SwitchOnGrating: 1
-    - _VerticalArmLength: 0.703
-    - _VerticalArmThickness: 0.026
+    - _Rotation: 89
+    - _SwitchOnGrating: 0
+    - _VerticalArmLength: 0
+    - _VerticalArmThickness: 0.5
     m_Colors:
-    - _Color1: {r: 0, g: 1, b: 0.06795335, a: 1}
+    - _Color1: {r: 1, g: 1, b: 1, a: 0}
     - _Color2: {r: 1, g: 0, b: 0, a: 1}
     - _GratingColor: {r: 0, g: 0, b: 0, a: 1}
     - _MainColor: {r: 0, g: 0.1551485, b: 1, a: 1}

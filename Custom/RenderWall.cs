@@ -4,7 +4,7 @@ using System.IO;
 using System;
 using System.Data;
 using UnityEngine.Rendering;
-
+using System.Collections.Generic;
 public class RenderWall : MonoBehaviour
 {
     private Transform avatarTransform;
@@ -140,7 +140,7 @@ public class RenderWall : MonoBehaviour
     // public float colliderRadialPos = 1.5f;
     // public Vector3 colliderSize = new Vector3(0.01f, 1f, 0.01f);
  
-    public void OnCreate(Vector3 position, Quaternion rotation, float height, float radius, Color color)
+   public void OnCreate(Vector3 position, Quaternion rotation, Vector3 scale, Color color, params KeyValuePair<string, object>[] kwargs)
     {
         
         
@@ -150,7 +150,7 @@ public class RenderWall : MonoBehaviour
         avatar= GameObject.Find("Avatar");
         transform.localPosition = position;
         transform.localRotation = rotation;
-        transform.localScale = new Vector3(radius, height, radius);
+        transform.localScale = scale;
         lastScale=transform.localScale;
         if (GetComponent<MeshRenderer>() != null)
         {
