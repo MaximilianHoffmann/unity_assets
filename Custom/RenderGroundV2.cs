@@ -37,6 +37,7 @@ public class RenderGroundV2 : MonoBehaviour
     void Start()
     {
         mat = groundTilePrefab.GetComponentInChildren<MeshRenderer>().sharedMaterial;
+        avatar = GameObject.Find("Avatar").transform;
         playerPosition = avatar.position;
         gridCenterPosition = playerPosition;
         gridCenterPosition.y = 0;
@@ -75,6 +76,7 @@ public class RenderGroundV2 : MonoBehaviour
     public void OnCreate(Vector3 position, Quaternion rotation, Vector3 scale, Color color, 
         params KeyValuePair<string, object>[] kwargs)
     {
+        avatar = GameObject.Find("Avatar").transform;
         playerPosition = avatar.position;
         gridCenterPosition = playerPosition;
         SetObjectsVisibility(false);

@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: -5030195693623021711}
   - component: {fileID: 7131645540130637976}
   m_Layer: 0
-  m_Name: MultiBar
+  m_Name: Square
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

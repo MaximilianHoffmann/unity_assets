@@ -24,13 +24,13 @@ Material:
     m_Floats:
     - _BoundaryThickness: 0
     - _GratingDensity: 0
-    - _HorizontalArmLength: 0.179
-    - _HorizontalArmThickness: 0.5
+    - _HorizontalArmLength: 0
+    - _HorizontalArmThickness: 0
     - _PlusThickness: 0.05
     - _Rotation: 89
     - _SwitchOnGrating: 0
-    - _VerticalArmLength: 0
-    - _VerticalArmThickness: 0.5
+    - _VerticalArmLength: 1
+    - _VerticalArmThickness: 0.14
     m_Colors:
     - _Color1: {r: 1, g: 1, b: 1, a: 0}
     - _Color2: {r: 1, g: 0, b: 0, a: 1}

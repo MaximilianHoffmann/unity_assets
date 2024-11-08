@@ -5,9 +5,8 @@ using System.IO;
 using System;
 using System.Data;
 
-// Don't forget to change the class name when using this as a template
-// for implementing new objects with custom behaviors
-public class RenderMultiBar : MonoBehaviour
+
+public class RenderSquare : MonoBehaviour
 {
     private Transform avatar;
     private Material mat;
@@ -47,20 +46,20 @@ public class RenderMultiBar : MonoBehaviour
 
     void Start()
     {
-        #if UNITY_EDITOR
-        Vector3 pos = new Vector3(0,0,0);
-        Vector3 scale = new Vector3(10,0,10);
-        Color white = new Color(1,1,1,1);
+        // #if UNITY_EDITOR
+        // Vector3 pos = new Vector3(0,0,0);
+        // Vector3 scale = new Vector3(10,0,10);
+        // Color white = new Color(1,1,1,1);
 
-        KeyValuePair<string, object>[]  kwargs=new KeyValuePair<string, object>[] 
-        {
-            new KeyValuePair<string, object>("Solidangle", Mathf.PI/2f),
-            new KeyValuePair<string, object>("Angle", 180f),
-            new KeyValuePair<string, object>("Distance", 100f)
-        };
-        OnCreate(pos, DefaultOrientation, scale, white,kwargs);
-        Visible = true;
-        #endif
+        // KeyValuePair<string, object>[]  kwargs=new KeyValuePair<string, object>[] 
+        // {
+        //     new KeyValuePair<string, object>("Solidangle", Mathf.PI/2f),
+        //     new KeyValuePair<string, object>("Angle", 180f),
+        //     new KeyValuePair<string, object>("Distance", 100f)
+        // };
+        // OnCreate(pos, DefaultOrientation, scale, white,kwargs);
+        // Visible = true;
+        // #endif
     }
 
     void Update()
@@ -85,6 +84,11 @@ public class RenderMultiBar : MonoBehaviour
         {
             File.Create(logFilePath).Close();
         }
+        transform.localScale=scale;
+        OrigScale=scale;
+
+        Angle=180;
+        Solidangle=30;
 
         foreach (var param in kwargs)
         {
@@ -97,15 +101,6 @@ public class RenderMultiBar : MonoBehaviour
         renderer.enabled = false;
         avatar = GameObject.Find("Avatar").transform;
 
-
-        
-        Vector3 direction = new Vector3(Mathf.Sin(Angle * Mathf.Deg2Rad), 0, Mathf.Cos(Angle * Mathf.Deg2Rad));
-        DefaultOffset = direction * Distance;
-        transform.localRotation = DefaultOrientation * Quaternion.Euler(Angle, 0, 0);
-        // Adjust the scale based on the solid angle
-        float scaleFactor = Mathf.Sqrt(Solidangle);
-        transform.localScale = scale * scaleFactor;
-        lastScale = transform.localScale;
 
         if (GetComponent<MeshRenderer>() != null)
         {
@@ -120,15 +115,54 @@ public class RenderMultiBar : MonoBehaviour
         HorizontalArmLength = 0.0F;
         Rotation = 0F;
         Color2 = color;
+        Visible =   false;
     
     }
 
-    public float Angle = 0;
-    public float Solidangle = 20;
+    
+    private float _angle = 180;
+    public float Angle
+    {
+        get => _angle;
+        set
+        {
+            _angle = value;
+            Vector3 direction = new Vector3(Mathf.Sin(_angle * Mathf.Deg2Rad), 0, Mathf.Cos(_angle * Mathf.Deg2Rad));
+            DefaultOffset = direction * Distance;
+            Debug.Log("Default Offset: " + DefaultOffset);
+            transform.rotation = DefaultQuaternion * Quaternion.AngleAxis(_angle , Vector3.forward);
+        }
+    }
+    private float _solidangle = 30;
+        public float Solidangle
+        {
+            get => _solidangle;
+            set
+            {
+                _solidangle = value;
+                if (transform != null)
+                {
+                    float scaleFactor = Mathf.Sqrt(_solidangle);
+                    transform.localScale = new Vector3 (OrigScale.x * scaleFactor * Distance,0F,1000);
+                }
+                Debug.Log("Scale: " + transform.localScale);
+                Debug.Log("Solidangle: " + _solidangle);
+            }
+        }
 
-    public float Distance = 20;
+    public float Distance = 400;
+    public float distance
+    {
+        get => Distance;
+        set
+        {
+            Distance = value;
+            Angle = _angle;      // Trigger Angle setter to update position
+            Solidangle = _solidangle;  // Trigger Solidangle setter to update scale
+        }
+    }
 
-    private Quaternion DefaultOrientation  = Quaternion.Euler(0,90,90);
+    private Vector3 OrigScale = new Vector3(1,1,1);
     private Vector3 DefaultOffset  = new Vector3 (10,10,0);
 
     public Color Color1
@@ -136,6 +170,7 @@ public class RenderMultiBar : MonoBehaviour
         get => mat.GetColor(_Color1);
         set => mat.SetColor(_Color1, value);
     }
+    private Quaternion DefaultQuaternion = Quaternion.Euler(90, 0, 0);
 
     public Color Color2
     {
