@@ -73,17 +73,20 @@ public class RenderSquare : MonoBehaviour
 
     private void LogTransformDetails()
     {
-        string logMessage = $"Time: {Time.time}, Position: {transform.position}, Rotation: {transform.rotation}, Scale: {transform.localScale}\n";
+        string logMessage = $"{Time.time}, {transform.position},{transform.rotation},  {transform.localScale}\n";
         File.AppendAllText(logFilePath, logMessage);
     }
 
     public void OnCreate(Vector3 position, Quaternion rotation, Vector3 scale, Color color, params KeyValuePair<string, object>[] kwargs)
     {
-        logFilePath = SetROSBridge.LogFilePath + "_multibar.csv";
+        logFilePath = SetROSBridge.LogFilePath + "_" + gameObject.name + "_multibar.csv";
         if (!File.Exists(logFilePath))
         {
             File.Create(logFilePath).Close();
         }
+
+        string logMessage = $"Time , Position x, Position y, Position z, Rotation w, Rotation x, Rotation y, Rotation z, Scale x, Scale y, Scale z\n";
+        File.AppendAllText(logFilePath, logMessage);
         transform.localScale=scale;
         OrigScale=scale;
 
@@ -130,7 +133,7 @@ public class RenderSquare : MonoBehaviour
             Vector3 direction = new Vector3(Mathf.Sin(_angle * Mathf.Deg2Rad), 0, Mathf.Cos(_angle * Mathf.Deg2Rad));
             DefaultOffset = direction * Distance;
             Debug.Log("Default Offset: " + DefaultOffset);
-            transform.rotation = DefaultQuaternion * Quaternion.AngleAxis(_angle , Vector3.forward);
+            transform.rotation = DefaultQuaternion * Quaternion.AngleAxis(-_angle , Vector3.forward);
         }
     }
     private float _solidangle = 30;
