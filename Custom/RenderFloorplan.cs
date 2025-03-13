@@ -15,6 +15,17 @@ public class RenderFloorplan : MonoBehaviour
     private string logFilePath;
     [SerializeField]
     private bool _attachToPlayer = false;
+    private bool _resetPosition = false;
+    public bool ResetPosition
+    {
+        get { return _resetPosition; }
+        set { _resetPosition = false; 
+            if (value)
+            {
+               RecenterAvatar();
+            }
+        }
+    }
     public bool AttachToPlayer
     {
         get { return _attachToPlayer; }
@@ -34,9 +45,75 @@ public class RenderFloorplan : MonoBehaviour
             }
         }
     }
+    
+    public string CurrentTexture
+    {
+        get { return "texture"; }
+        set { 
+            // Parse the JSON string into a JArray
+            var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
+            if (jsonArray != null)
+            {
+                int height = jsonArray.Count;
+                int width = jsonArray[0].Count();
+                Color[] pixels = new Color[width * height];
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        var rgb = jsonArray[y][x].ToObject<float[]>();
+                        pixels[y * width + x] = new Color(rgb[0], rgb[1], rgb[2], 1f);
+                  
+                    }
+                }
+                Texture2D texture = new Texture2D(width, height);
+                texture.filterMode = FilterMode.Point;  
+                texture.SetPixels(pixels);
+                texture.Apply();
+                _currentTexture = texture;  
+                GetComponent<Renderer>().material.mainTexture = texture;
+            }
+        }}
+        
+    private Texture2D _currentTexture; 
+    public string CurrentCollider
+    {
+        get { return "collider"; }
+        set { 
+           var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
+            int height = jsonArray.Count;
+            int width = jsonArray[0].Count();
+            _currentCollider = new int[height, width];
+            
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    _currentCollider[y, x] = jsonArray[y][x].ToObject<int>();
+                }
+            }
 
-    private Texture2D currentTexture;  // Add this field at class level
-
+            wasLastPositionValid = false;
+            }
+        }
+    private int[,] _currentCollider; 
+    private Vector3 lastValidPosition;
+    private bool wasLastPositionValid = false;
+    private Vector3 _defaultLocalPosition = new Vector3(0f, 0f, 0f);
+    public Vector3 DefaultLocalPosition
+    {
+        get { return _defaultLocalPosition; }
+        set { _defaultLocalPosition = value; }
+    }
+    
+    [SerializeField]
+    private bool _enableCollider = true;
+    public bool EnableCollider
+    {
+        get { return _enableCollider; }
+        set { _enableCollider = value; }
+    }
+    
     void Start()
     {
         // #if UNITY_EDITOR
@@ -88,45 +165,87 @@ public class RenderFloorplan : MonoBehaviour
         // Debug.Log("Texture applied to material");
         // #endif
     }
+    void RecenterAvatar()
+    {
+        Vector3 worldPos = transform.TransformPoint(new Vector3(
+            DefaultLocalPosition.x * 5f,  
+            avatar.position.y,
+            DefaultLocalPosition.z * 5f   
+        ));
+        avatar.position = worldPos;
+        Debug.Log($"DefaultLocalPosition {DefaultLocalPosition}");
+        Debug.Log($"Recentered avatar to {worldPos}");
+    }
 
     void Update()
     {   
         if(_attachToPlayer)
         {
-            transform.position = avatar.position + DefaultOffset;
+             transform.position = avatar.position + DefaultOffset;
         }
-        
-        // Calculate UV coordinates after any position updates
+                
         Vector3 localPos = transform.InverseTransformPoint(avatar.position);
-        
-        // Flip the Z coordinate for proper UV mapping
         Vector2 textureCoord = new Vector2(
             ((-localPos.x / 5f) + 1.0f) / 2.0f,
-            ((-localPos.z / 5f) + 1.0f) / 2.0f  // Note the negative sign here
+            ((-localPos.z / 5f) + 1.0f) / 2.0f 
         );
         
-        if (currentTexture != null)
+       
+        bool isValidPosition = !_enableCollider || SampleCollider(textureCoord);
+
+        if (isValidPosition)
+        {
+            lastValidPosition = avatar.position;
+            wasLastPositionValid = true;
+        }
+        else if (wasLastPositionValid)
+        {
+            avatar.position = lastValidPosition;
+        }
+        else
+        {
+            RecenterAvatar();
+        }
+
+        if (_currentTexture != null)
         {
             Color pixelColor = SampleTexture(textureCoord);
+            bool colliderColor = SampleCollider(textureCoord);
             Debug.Log($"Local X: {localPos.x}, Local Z: {localPos.z}, X: {avatar.position.x}, Z: {avatar.position.z}");
             Debug.Log($"Avatar at texture coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {pixelColor}");
+            Debug.Log($"Avatar at collider coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {colliderColor}");
             Debug.Log($"Local Scale: {transform.localScale}");
         }
     }
 
     private Color SampleTexture(Vector2 uv)
     {
-        if (currentTexture == null) return Color.black;
+        if (_currentTexture == null) return Color.black;
         
         // Clamp UV coordinates to [0,1]
         uv.x = Mathf.Clamp01(uv.x);
         uv.y = Mathf.Clamp01(uv.y);
         
         // Convert to pixel coordinates
-        int x = Mathf.FloorToInt(uv.x * (currentTexture.width - 1));
-        int y = Mathf.FloorToInt(uv.y * (currentTexture.height - 1));
+        int x = Mathf.FloorToInt(uv.x * (_currentTexture.width - 1));
+        int y = Mathf.FloorToInt(uv.y * (_currentTexture.height - 1));
         
-        return currentTexture.GetPixel(x, y);  // Fixed typo: 'ax' to 'x'
+        return _currentTexture.GetPixel(x, y);  // Fixed typo: 'ax' to 'x'
+    }
+
+    private bool SampleCollider(Vector2 uv)
+    {
+        if (_currentCollider == null) return false;
+        
+        // Clamp UV coordinates to [0,1]
+        uv.x = Mathf.Clamp01(uv.x);
+        uv.y = Mathf.Clamp01(uv.y);
+        
+        // Convert to grid coordinates
+        int x = Mathf.FloorToInt(uv.x * (_currentCollider.GetLength(1) - 1));
+        int y = Mathf.FloorToInt(uv.y * (_currentCollider.GetLength(0) - 1));
+        
+        return _currentCollider[y, x] == 1;
     }
 
     public void OnCreate(Vector3 position, Quaternion rotation, Vector3 scale, Color color, KeyValuePair<string, object>[] kvlist)
@@ -156,6 +275,7 @@ public class RenderFloorplan : MonoBehaviour
                     {
                         var rgb = jsonArray[y][x].ToObject<float[]>();
                         pixels[y * width + x] = new Color(rgb[0], rgb[1], rgb[2], 1f);
+                  
                     }
                 }
 
@@ -165,10 +285,33 @@ public class RenderFloorplan : MonoBehaviour
                 texture.SetPixels(pixels);
                 texture.Apply();
 
-                currentTexture = texture;  // Save reference to texture
+                _currentTexture = texture;  // Save reference to texture
                 GetComponent<Renderer>().material.mainTexture = texture;
             }
         }
+        
+        var colliderData = kvlist.FirstOrDefault(kv => kv.Key == "collider");
+        if (colliderData.Value != null)
+        {
+            var jsonArray = colliderData.Value as Newtonsoft.Json.Linq.JArray;
+            if (jsonArray != null)
+            {
+                int height = jsonArray.Count;
+                int width = jsonArray[0].Count();
+                _currentCollider = new int[height, width];
+                
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        _currentCollider[y, x] = jsonArray[y][x].ToObject<int>();
+                    }
+                }
+
+           
+            }
+        }
+            
 
         if (GetComponent<MeshRenderer>() != null)
         {
