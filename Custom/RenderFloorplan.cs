@@ -175,6 +175,14 @@ public class RenderFloorplan : MonoBehaviour
         avatar.position = worldPos;
         Debug.Log($"DefaultLocalPosition {DefaultLocalPosition}");
         Debug.Log($"Recentered avatar to {worldPos}");
+        double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
+        if (File.Exists(logFilePath)) 
+        { 
+            File.AppendAllText(logFilePath, 
+                $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," +
+                $"{avatar.position.x:F3},{avatar.position.z:F3},{avatar.position.y:F3}," + 
+                $"{worldPos.x:F3},{worldPos.z:F3},{worldPos.y:F3}\n" ) ;   }
+
     }
 
     void Update()
@@ -200,6 +208,15 @@ public class RenderFloorplan : MonoBehaviour
         }
         else if (wasLastPositionValid)
         {
+            
+
+            double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
+            if (File.Exists(logFilePath)) 
+            { 
+                File.AppendAllText(logFilePath, 
+                    $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," + 
+                    $"{avatar.position.x:F3},{avatar.position.z:F3},{avatar.position.y:F3}," +
+                    $"{lastValidPosition.x:F3},{lastValidPosition.z:F3},{lastValidPosition.y:F3}\n" ) ;   }
             avatar.position = lastValidPosition;
         }
         else
@@ -256,6 +273,22 @@ public class RenderFloorplan : MonoBehaviour
         renderer = GetComponent<MeshRenderer>();
         renderer.enabled = false;
         avatar = GameObject.Find("Avatar").transform;
+
+
+        string gameObjectName = gameObject.name;
+        
+             
+        
+        logFilePath = SetROSBridge.LogFilePath + "_" + gameObjectName+".csv";
+        Debug.Log($"Log file path: {logFilePath}");
+        if (SetROSBridge.LogFilePath != "")
+        {
+            File.WriteAllText(logFilePath, 
+                "unity_time,last_timestamp," +
+                "old_proper_position_x,old_proper_position_y,old_proper_position_z," +
+                "new_proper_position_x,new_proper_position_y,new_proper_position_z" +
+                "\n");
+        }
 
         // Find the texture data in kvlist
         var textureData = kvlist.FirstOrDefault(kv => kv.Key == "texture");
