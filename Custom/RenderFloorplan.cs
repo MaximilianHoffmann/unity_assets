@@ -107,11 +107,11 @@ public class RenderFloorplan : MonoBehaviour
     }
     
     [SerializeField]
-    private bool _enableCollider = true;
+    private bool _EnableCollider = false;
     public bool EnableCollider
     {
-        get { return _enableCollider; }
-        set { _enableCollider = value; }
+        get { return _EnableCollider; }
+        set { _EnableCollider = value; }
     }
     
     void Start()
@@ -199,7 +199,7 @@ public class RenderFloorplan : MonoBehaviour
         );
         
        
-        bool isValidPosition = !_enableCollider || SampleCollider(textureCoord);
+        bool isValidPosition = !_EnableCollider || SampleCollider(textureCoord);
 
         if (isValidPosition)
         {
@@ -228,10 +228,10 @@ public class RenderFloorplan : MonoBehaviour
         {
             Color pixelColor = SampleTexture(textureCoord);
             bool colliderColor = SampleCollider(textureCoord);
-            Debug.Log($"Local X: {localPos.x}, Local Z: {localPos.z}, X: {avatar.position.x}, Z: {avatar.position.z}");
-            Debug.Log($"Avatar at texture coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {pixelColor}");
-            Debug.Log($"Avatar at collider coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {colliderColor}");
-            Debug.Log($"Local Scale: {transform.localScale}");
+            // Debug.Log($"Local X: {localPos.x}, Local Z: {localPos.z}, X: {avatar.position.x}, Z: {avatar.position.z}");
+            // Debug.Log($"Avatar at texture coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {pixelColor}");
+            // Debug.Log($"Avatar at collider coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {colliderColor}");
+            // Debug.Log($"Local Scale: {transform.localScale}");
         }
     }
 
