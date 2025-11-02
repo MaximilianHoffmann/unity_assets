@@ -5,7 +5,10 @@ Shader "Custom/RoomWall"
         _Color1 ("Color 1", Color) = (0.2, 0.2, 0.2, 1.0)
         _Color2 ("Color 2", Color) = (0.8, 0.8, 0.8, 1.0)
         _NoiseScale ("Noise Scale", Float) = 1.0
+        _UseBandNoise ("Use Band Noise", Float) = 0.0
         _Seed ("Random Seed", Float) = 0.0
+        _BandFrequencies ("Band Frequencies", Vector) = (0.05, 0.12, 0.30, 0.0)
+        _BandAmplitudes ("Band Amplitudes", Vector) = (0.6, 0.8, 0.5, 0.0)
     }
     SubShader
     {
@@ -35,7 +38,10 @@ Shader "Custom/RoomWall"
             float4 _Color1;
             float4 _Color2;
             float _NoiseScale;
+            float _UseBandNoise;
             float _Seed;
+            float4 _BandFrequencies;
+            float4 _BandAmplitudes;
 
             v2f vert (appdata v)
             {
@@ -98,10 +104,41 @@ Shader "Custom/RoomWall"
                 return total / maxValue;
             }
 
+            float bandLimitedNoise(float2 p)
+            {
+                float3 freqs = _BandFrequencies.xyz;
+                float3 amps = _BandAmplitudes.xyz;
+
+                float total = 0.0;
+                float weightSum = 0.0;
+
+                for (int idx = 0; idx < 3; idx++)
+                {
+                    float freq = freqs[idx];
+                    float amp = amps[idx];
+                    float scaledFreq = max(freq * 20.0, 0.001);
+                    float2 offset = float2(idx * 17.27 + _Seed, idx * 41.13 - _Seed);
+                    float bandSample = noise(p * scaledFreq + offset);
+                    total += bandSample * amp;
+                    weightSum += amp;
+                }
+
+                return total / max(weightSum, 0.0001);
+            }
+
             fixed4 frag (v2f i) : SV_Target
             {
-                // Generate 1/f noise based on world position
-                float noiseValue = pinkNoise(i.worldPos * _NoiseScale);
+                float2 uv = i.worldPos * _NoiseScale;
+
+                float noiseValue;
+                if (_UseBandNoise > 0.5)
+                {
+                    noiseValue = bandLimitedNoise(uv);
+                }
+                else
+                {
+                    noiseValue = pinkNoise(uv);
+                }
 
                 // Interpolate between Color1 and Color2 based on noise
                 fixed4 color = lerp(_Color1, _Color2, noiseValue);

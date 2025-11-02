@@ -29,13 +29,19 @@ public class RenderRoom : MonoBehaviour
     private static readonly int _Color1ID = Shader.PropertyToID("_Color1");
     private static readonly int _Color2ID = Shader.PropertyToID("_Color2");
     private static readonly int _NoiseScaleID = Shader.PropertyToID("_NoiseScale");
+    private static readonly int _UseBandNoiseID = Shader.PropertyToID("_UseBandNoise");
     private static readonly int _SeedID = Shader.PropertyToID("_Seed");
+    private static readonly int _BandFrequenciesID = Shader.PropertyToID("_BandFrequencies");
+    private static readonly int _BandAmplitudesID = Shader.PropertyToID("_BandAmplitudes");
     private static Material fallbackWallMaterial;
     private bool wallMaterialDirty = true;
     private bool wallMaterialAppliedOnce = false;
     private Color _appliedWallColor1;
     private Color _appliedWallColor2;
     private float _appliedNoiseScale;
+    private bool _appliedUseBandNoise;
+    private Vector3 _appliedBandFrequencies;
+    private Vector3 _appliedBandAmplitudes;
     private MaterialPropertyBlock wallPropertyBlock;
 
     [SerializeField]
@@ -134,6 +140,46 @@ public class RenderRoom : MonoBehaviour
         }
     }
 
+    [SerializeField]
+    private bool _useBandNoise = false;
+    public bool UseBandNoise
+    {
+        get { return _useBandNoise; }
+        set
+        {
+            Debug.Log($"UseBandNoise setter called: {value}");
+            _useBandNoise = value;
+            wallMaterialDirty = true;
+            ApplyWallMaterialProperties();
+        }
+    }
+
+    private Vector3 _bandFrequencies = new Vector3(0.05f, 0.12f, 0.30f);
+    public Vector3 BandFrequencies
+    {
+        get { return _bandFrequencies; }
+        set
+        {
+            Debug.Log($"BandFrequencies setter called: {value}");
+            _bandFrequencies = value;
+            wallMaterialDirty = true;
+            ApplyWallMaterialProperties();
+        }
+    }
+
+    private Vector3 _bandAmplitudes = new Vector3(0.6f, 0.8f, 0.5f);
+    public Vector3 BandAmplitudes
+    {
+        get { return _bandAmplitudes; }
+        set
+        {
+            Debug.Log($"BandAmplitudes setter called: {value}");
+            _bandAmplitudes = value;
+            wallMaterialDirty = true;
+            ApplyWallMaterialProperties();
+        }
+    }
+
     // Backwards compatibility: WallColor sets both colors to the same value
     public Color WallColor
     {
@@ -144,7 +190,7 @@ public class RenderRoom : MonoBehaviour
             WallColor2 = value;
         }
     }
-    
+
     public string CurrentTexture
     {
         get { return "texture"; }
@@ -608,6 +654,9 @@ public class RenderRoom : MonoBehaviour
 
         Debug.Log($"Generated {wallQuads.Count} wall quads from {_currentWallSegments.Count} segments");
 
+        // Ensure all wall renderers have the latest material properties applied
+        UpdateWallPropertyBlocks();
+
         // Update wall visibility to match current settings
         UpdateWallVisibility();
     }
@@ -702,15 +751,21 @@ public class RenderRoom : MonoBehaviour
             return;
         }
 
-        Debug.Log($"Applying wall material properties: Color1={_wallColor1}, Color2={_wallColor2}, NoiseScale={_noiseScale}");
+        Debug.Log($"Applying wall material properties: Color1={_wallColor1}, Color2={_wallColor2}, NoiseScale={_noiseScale}, UseBandNoise={_useBandNoise}, BandFreq={_bandFrequencies}, BandAmp={_bandAmplitudes}");
         wallMaterialInstance.SetColor(_Color1ID, _wallColor1);
         wallMaterialInstance.SetColor(_Color2ID, _wallColor2);
         wallMaterialInstance.SetFloat(_NoiseScaleID, _noiseScale);
+        wallMaterialInstance.SetFloat(_UseBandNoiseID, _useBandNoise ? 1f : 0f);
+        wallMaterialInstance.SetVector(_BandFrequenciesID, _bandFrequencies);
+        wallMaterialInstance.SetVector(_BandAmplitudesID, _bandAmplitudes);
         wallMaterialDirty = false;
         wallMaterialAppliedOnce = true;
         _appliedWallColor1 = _wallColor1;
         _appliedWallColor2 = _wallColor2;
         _appliedNoiseScale = _noiseScale;
+        _appliedUseBandNoise = _useBandNoise;
+        _appliedBandFrequencies = _bandFrequencies;
+        _appliedBandAmplitudes = _bandAmplitudes;
         UpdateWallPropertyBlocks();
     }
 
@@ -724,7 +779,10 @@ public class RenderRoom : MonoBehaviour
 
         if (_wallColor1 != _appliedWallColor1 ||
             _wallColor2 != _appliedWallColor2 ||
-            !Mathf.Approximately(_noiseScale, _appliedNoiseScale))
+            !Mathf.Approximately(_noiseScale, _appliedNoiseScale) ||
+            _useBandNoise != _appliedUseBandNoise ||
+            _bandFrequencies != _appliedBandFrequencies ||
+            _bandAmplitudes != _appliedBandAmplitudes)
         {
             wallMaterialDirty = true;
         }
@@ -745,6 +803,9 @@ public class RenderRoom : MonoBehaviour
         wallPropertyBlock.SetColor(_Color1ID, _wallColor1);
         wallPropertyBlock.SetColor(_Color2ID, _wallColor2);
         wallPropertyBlock.SetFloat(_NoiseScaleID, _noiseScale);
+        wallPropertyBlock.SetFloat(_UseBandNoiseID, _useBandNoise ? 1f : 0f);
+        wallPropertyBlock.SetVector(_BandFrequenciesID, _bandFrequencies);
+        wallPropertyBlock.SetVector(_BandAmplitudesID, _bandAmplitudes);
 
         foreach (var wall in wallQuads)
         {
