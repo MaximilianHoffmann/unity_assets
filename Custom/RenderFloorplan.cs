@@ -186,12 +186,16 @@ public class RenderFloorplan : MonoBehaviour
     }
 
     void Update()
-    {   
+    {
+        // Early return if avatar not yet initialized
+        if (avatar == null)
+            return;
+
         if(_attachToPlayer)
         {
              transform.position = avatar.position + DefaultOffset;
         }
-                
+
         Vector3 localPos = transform.InverseTransformPoint(avatar.position);
         Vector2 textureCoord = new Vector2(
             ((-localPos.x / 5f) + 1.0f) / 2.0f,
