@@ -7,7 +7,7 @@ Shader "Custom/RoomWall"
         _NoiseScale ("Noise Scale", Float) = 1.0
         _UseBandNoise ("Use Band Noise", Float) = 0.0
         _Seed ("Random Seed", Float) = 0.0
-        _BandFrequencies ("Band Frequencies", Vector) = (0.05, 0.12, 0.30, 0.0)
+        _BandFrequencies ("Band Frequencies (cycles/m)", Vector) = (1.0, 2.4, 6.0, 0.0)
         _BandAmplitudes ("Band Amplitudes", Vector) = (0.6, 0.8, 0.5, 0.0)
     }
     SubShader
@@ -48,9 +48,11 @@ Shader "Custom/RoomWall"
                 v2f o;
                 o.pos = UnityObjectToClipPos(v.vertex);
 
-                // Get world position for spatial noise
+                // Get world position for isotropic spatial noise
                 float3 worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
-                o.worldPos = worldPos.xz + worldPos.yy * 0.1; // Use XZ plane + a bit of Y
+                // Use XY plane for vertical walls
+                // This gives isotropic noise in world space units (meters)
+                o.worldPos = worldPos.xy;
 
                 return o;
             }
@@ -116,7 +118,7 @@ Shader "Custom/RoomWall"
                 {
                     float freq = freqs[idx];
                     float amp = amps[idx];
-                    float scaledFreq = max(freq * 20.0, 0.001);
+                    float scaledFreq = max(freq, 0.001);
                     float2 offset = float2(idx * 17.27 + _Seed, idx * 41.13 - _Seed);
                     float bandSample = noise(p * scaledFreq + offset);
                     total += bandSample * amp;
@@ -128,6 +130,7 @@ Shader "Custom/RoomWall"
 
             fixed4 frag (v2f i) : SV_Target
             {
+                // Use world space coordinates for isotropic noise
                 float2 uv = i.worldPos * _NoiseScale;
 
                 float noiseValue;
