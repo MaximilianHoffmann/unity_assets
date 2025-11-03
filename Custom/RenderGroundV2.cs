@@ -22,13 +22,26 @@ public class RenderGroundV2 : MonoBehaviour
     private bool _Visible = false;
     public bool Visible
     {
-        get{
-            return _Visible;
-        }
-        
-        set{
-            _Visible=value;
-            SetObjectsVisibility(value);
+        get { return _Visible; }
+        set
+        {
+            _Visible = value;
+            // Update all existing tiles
+            foreach (var row in tileGrid)
+            {
+                foreach (var tile in row)
+                {
+                    if (tile != null)
+                    {
+                        Transform firstChild = tile.transform.GetChild(0);
+                        MeshRenderer tileRenderer = firstChild.GetComponent<MeshRenderer>();
+                        if (tileRenderer != null)
+                        {
+                            tileRenderer.enabled = _Visible;
+                        }
+                    }
+                }
+            }
         }
     }
         
