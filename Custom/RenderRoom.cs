@@ -44,6 +44,33 @@ public class RenderRoom : MonoBehaviour
     private Vector3 _appliedBandAmplitudes;
     private MaterialPropertyBlock wallPropertyBlock;
     private bool wallMaterialSupportsProperties = false;
+    private bool wallNeedsPostTextureApply = false;
+    private bool _applyWallProperties = false;
+
+    // Cached properties for atomic update
+    private Color _cachedWallColor1 = new Color(0.2f, 0.2f, 0.2f, 1.0f);
+    private Color _cachedWallColor2 = new Color(0.8f, 0.8f, 0.8f, 1.0f);
+    private float _cachedNoiseScale = 1.0f;
+    private bool _cachedUseBandNoise = false;
+    private Vector3 _cachedBandFrequencies = new Vector3(0.05f, 0.12f, 0.30f);
+    private Vector3 _cachedBandAmplitudes = new Vector3(0.6f, 0.8f, 0.5f);
+    private string _cachedTexture = null;
+    private string _cachedCollider = null;
+    private string _cachedWalls = null;
+    private bool _hasWallPropertyCache = false;
+
+    public bool ApplyWallProperties
+    {
+        get { return _applyWallProperties; }
+        set
+        {
+            _applyWallProperties = false;
+            if (value)
+            {
+                ApplyCachedWallProperties();
+            }
+        }
+    }
 
     [SerializeField]
     private bool _attachToPlayer = false;
@@ -51,7 +78,7 @@ public class RenderRoom : MonoBehaviour
     public bool ResetPosition
     {
         get { return _resetPosition; }
-        set { _resetPosition = false; 
+        set { _resetPosition = false;
             if (value)
             {
                RecenterAvatar();
@@ -108,10 +135,11 @@ public class RenderRoom : MonoBehaviour
         get { return _wallColor1; }
         set
         {
-            Debug.Log($"WallColor1 setter called: {value}");
-            _wallColor1 = value;
-            wallMaterialDirty = true;
-            ApplyWallMaterialProperties();
+            Debug.Log($"WallColor1 setter called: {value} (caching only, not applying immediately)");
+            _cachedWallColor1 = value;
+            _hasWallPropertyCache = true;
+            // Do NOT set wallMaterialDirty here - only cache the value
+            // Properties will be applied atomically via ApplyWallProperties trigger
         }
     }
 
@@ -121,10 +149,11 @@ public class RenderRoom : MonoBehaviour
         get { return _wallColor2; }
         set
         {
-            Debug.Log($"WallColor2 setter called: {value}");
-            _wallColor2 = value;
-            wallMaterialDirty = true;
-            ApplyWallMaterialProperties();
+            Debug.Log($"WallColor2 setter called: {value} (caching only, not applying immediately)");
+            _cachedWallColor2 = value;
+            _hasWallPropertyCache = true;
+            // Do NOT set wallMaterialDirty here - only cache the value
+            // Properties will be applied atomically via ApplyWallProperties trigger
         }
     }
 
@@ -134,10 +163,11 @@ public class RenderRoom : MonoBehaviour
         get { return _noiseScale; }
         set
         {
-            Debug.Log($"NoiseScale setter called: {value}");
-            _noiseScale = value;
-            wallMaterialDirty = true;
-            ApplyWallMaterialProperties();
+            Debug.Log($"NoiseScale setter called: {value} (caching only, not applying immediately)");
+            _cachedNoiseScale = value;
+            _hasWallPropertyCache = true;
+            // Do NOT set wallMaterialDirty here - only cache the value
+            // Properties will be applied atomically via ApplyWallProperties trigger
         }
     }
 
@@ -148,10 +178,11 @@ public class RenderRoom : MonoBehaviour
         get { return _useBandNoise; }
         set
         {
-            Debug.Log($"UseBandNoise setter called: {value}");
-            _useBandNoise = value;
-            wallMaterialDirty = true;
-            ApplyWallMaterialProperties();
+            Debug.Log($"UseBandNoise setter called: {value} (caching only, not applying immediately)");
+            _cachedUseBandNoise = value;
+            _hasWallPropertyCache = true;
+            // Do NOT set wallMaterialDirty here - only cache the value
+            // Properties will be applied atomically via ApplyWallProperties trigger
         }
     }
 
@@ -161,10 +192,11 @@ public class RenderRoom : MonoBehaviour
         get { return _bandFrequencies; }
         set
         {
-            Debug.Log($"BandFrequencies setter called: {value}");
-            _bandFrequencies = value;
-            wallMaterialDirty = true;
-            ApplyWallMaterialProperties();
+            Debug.Log($"BandFrequencies setter called: {value} (caching only, not applying immediately)");
+            _cachedBandFrequencies = value;
+            _hasWallPropertyCache = true;
+            // Do NOT set wallMaterialDirty here - only cache the value
+            // Properties will be applied atomically via ApplyWallProperties trigger
         }
     }
 
@@ -174,10 +206,11 @@ public class RenderRoom : MonoBehaviour
         get { return _bandAmplitudes; }
         set
         {
-            Debug.Log($"BandAmplitudes setter called: {value}");
-            _bandAmplitudes = value;
-            wallMaterialDirty = true;
-            ApplyWallMaterialProperties();
+            Debug.Log($"BandAmplitudes setter called: {value} (caching only, not applying immediately)");
+            _cachedBandAmplitudes = value;
+            _hasWallPropertyCache = true;
+            // Do NOT set wallMaterialDirty here - only cache the value
+            // Properties will be applied atomically via ApplyWallProperties trigger
         }
     }
 
@@ -197,110 +230,124 @@ public class RenderRoom : MonoBehaviour
         get { return "texture"; }
         set
         {
-            try
+            _cachedTexture = value;
+            _hasWallPropertyCache = true;
+        }
+    }
+
+    private void ApplyCurrentTexture(string value)
+    {
+        try
+        {
+            var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
+            if (jsonArray == null || jsonArray.Count == 0)
             {
-                var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
-                if (jsonArray == null || jsonArray.Count == 0)
-                {
-                    Debug.LogWarning("RenderRoom.CurrentTexture received empty payload");
-                    return;
-                }
-
-                int height = jsonArray.Count;
-                int width = (jsonArray[0] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0;
-                if (width == 0)
-                {
-                    Debug.LogWarning("RenderRoom.CurrentTexture received rows with zero length");
-                    return;
-                }
-
-                if (_currentTexture == null || _currentTexture.width != width || _currentTexture.height != height)
-                {
-                    if (_currentTexture != null)
-                    {
-                        if (Application.isPlaying)
-                        {
-                            Destroy(_currentTexture);
-                        }
-                        else
-                        {
-                            DestroyImmediate(_currentTexture);
-                        }
-                    }
-
-                    _currentTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
-                    {
-                        filterMode = FilterMode.Point,
-                        wrapMode = TextureWrapMode.Clamp
-                    };
-                }
-
-                var pixels = _currentTexture.GetPixels();
-                if (pixels.Length != width * height)
-                {
-                    pixels = new Color[width * height];
-                }
-
-                int index = 0;
-                for (int y = 0; y < height; y++)
-                {
-                    var row = jsonArray[y] as Newtonsoft.Json.Linq.JArray;
-                    if (row == null || row.Count != width)
-                    {
-                        Debug.LogWarning($"RenderRoom.CurrentTexture row {y} has unexpected length");
-                        return;
-                    }
-
-                    for (int x = 0; x < width; x++, index++)
-                    {
-                        var rgbToken = row[x];
-                        var rgb = rgbToken?.ToObject<float[]>();
-                        pixels[index] = (rgb != null && rgb.Length >= 3)
-                            ? new Color(rgb[0], rgb[1], rgb[2], 1f)
-                            : Color.black;
-                    }
-                }
-
-                _currentTexture.SetPixels(pixels);
-                _currentTexture.Apply(false);
-
-                if (!EnsureFloorMaterialInstance())
-                {
-                    Debug.LogWarning("RenderRoom.CurrentTexture could not access floor material");
-                    return;
-                }
-
-                floorMaterialInstance.mainTexture = _currentTexture;
-                Debug.Log($"RenderRoom.CurrentTexture applied {width}x{height}, renderer mat={renderer.sharedMaterial?.name}");
+                Debug.LogWarning("RenderRoom.CurrentTexture received empty payload");
+                return;
             }
-            catch (Exception ex)
+
+            int height = jsonArray.Count;
+            int width = (jsonArray[0] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0;
+            if (width == 0)
             {
-                Debug.LogError($"RenderRoom.CurrentTexture failed: {ex}");
+                Debug.LogWarning("RenderRoom.CurrentTexture received rows with zero length");
+                return;
             }
+
+            if (_currentTexture == null || _currentTexture.width != width || _currentTexture.height != height)
+            {
+                if (_currentTexture != null)
+                {
+                    if (Application.isPlaying)
+                    {
+                        Destroy(_currentTexture);
+                    }
+                    else
+                    {
+                        DestroyImmediate(_currentTexture);
+                    }
+                }
+
+                _currentTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+                {
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Clamp
+                };
+            }
+
+            var pixels = _currentTexture.GetPixels();
+            if (pixels.Length != width * height)
+            {
+                pixels = new Color[width * height];
+            }
+
+            int index = 0;
+            for (int y = 0; y < height; y++)
+            {
+                var row = jsonArray[y] as Newtonsoft.Json.Linq.JArray;
+                if (row == null || row.Count != width)
+                {
+                    Debug.LogWarning($"RenderRoom.CurrentTexture row {y} has unexpected length");
+                    return;
+                }
+
+                for (int x = 0; x < width; x++, index++)
+                {
+                    var rgbToken = row[x];
+                    var rgb = rgbToken?.ToObject<float[]>();
+                    pixels[index] = (rgb != null && rgb.Length >= 3)
+                        ? new Color(rgb[0], rgb[1], rgb[2], 1f)
+                        : Color.black;
+                }
+            }
+
+            _currentTexture.SetPixels(pixels);
+            _currentTexture.Apply(false);
+
+            if (!EnsureFloorMaterialInstance())
+            {
+                Debug.LogWarning("RenderRoom.CurrentTexture could not access floor material");
+                return;
+            }
+
+            floorMaterialInstance.mainTexture = _currentTexture;
+            Debug.Log($"ApplyCurrentTexture SUCCESS: Set floor texture to {width}x{height} texture");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"RenderRoom.ApplyCurrentTexture failed: {ex}");
         }
     }
         
-    private Texture2D _currentTexture; 
+    private Texture2D _currentTexture;
     public string CurrentCollider
     {
         get { return "collider"; }
-        set {
-           var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
-            int height = jsonArray.Count;
-            int width = jsonArray[0].Count();
-            _currentCollider = new int[height, width];
+        set
+        {
+            _cachedCollider = value;
+            _hasWallPropertyCache = true;
+        }
+    }
 
-            for (int y = 0; y < height; y++)
+    private void ApplyCurrentCollider(string value)
+    {
+        var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
+        int height = jsonArray.Count;
+        int width = jsonArray[0].Count();
+        _currentCollider = new int[height, width];
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
             {
-                for (int x = 0; x < width; x++)
-                {
-                    _currentCollider[y, x] = jsonArray[y][x].ToObject<int>();
-                }
-            }
-
-            wasLastPositionValid = false;
+                _currentCollider[y, x] = jsonArray[y][x].ToObject<int>();
             }
         }
+
+        wasLastPositionValid = false;
+    }
+
     private int[,] _currentCollider;
 
     private bool EnsureFloorMaterialInstance()
@@ -407,30 +454,37 @@ public class RenderRoom : MonoBehaviour
     public string Walls
     {
         get { return "walls"; }
-        set {
-            // Expected format: Array of wall segments
-            // Each segment: {"x1": float, "z1": float, "x2": float, "z2": float, "height": float}
-            var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
-            _currentWallSegments.Clear();
-
-            foreach (var segmentData in jsonArray)
-            {
-                WallSegment segment = new()
-                {
-                    x1 = segmentData["x1"].ToObject<float>(),
-                    z1 = segmentData["z1"].ToObject<float>(),
-                    x2 = segmentData["x2"].ToObject<float>(),
-                    z2 = segmentData["z2"].ToObject<float>(),
-                    height = segmentData["height"].ToObject<float>(),
-                    nx = segmentData["nx"] != null ? segmentData["nx"].ToObject<float>() : 0f,
-                    nz = segmentData["nz"] != null ? segmentData["nz"].ToObject<float>() : 0f
-                };
-                _currentWallSegments.Add(segment);
-            }
-
-            // Regenerate wall geometry
-            GenerateWallQuads();
+        set
+        {
+            _cachedWalls = value;
+            _hasWallPropertyCache = true;
         }
+    }
+
+    private void ApplyWalls(string value)
+    {
+        // Expected format: Array of wall segments
+        // Each segment: {"x1": float, "z1": float, "x2": float, "z2": float, "height": float}
+        var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
+        _currentWallSegments.Clear();
+
+        foreach (var segmentData in jsonArray)
+        {
+            WallSegment segment = new()
+            {
+                x1 = segmentData["x1"].ToObject<float>(),
+                z1 = segmentData["z1"].ToObject<float>(),
+                x2 = segmentData["x2"].ToObject<float>(),
+                z2 = segmentData["z2"].ToObject<float>(),
+                height = segmentData["height"].ToObject<float>(),
+                nx = segmentData["nx"] != null ? segmentData["nx"].ToObject<float>() : 0f,
+                nz = segmentData["nz"] != null ? segmentData["nz"].ToObject<float>() : 0f
+            };
+            _currentWallSegments.Add(segment);
+        }
+
+        // Regenerate wall geometry
+        GenerateWallQuads();
     }
 
     private Vector3 lastValidPosition;
@@ -550,9 +604,10 @@ public class RenderRoom : MonoBehaviour
         }
 
         Vector3 localPos = transform.InverseTransformPoint(avatar.position);
-        float u = Mathf.InverseLerp(PlaneHalfSize, -PlaneHalfSize, localPos.x);
-        float v = Mathf.InverseLerp(PlaneHalfSize, -PlaneHalfSize, localPos.z);
-        Vector2 textureCoord = new Vector2(u, v);
+        Vector2 textureCoord = new Vector2(
+            ((-localPos.x / PlaneHalfSize) + 1.0f) / 2.0f,
+            ((-localPos.z / PlaneHalfSize) + 1.0f) / 2.0f
+        );
         
        
         bool isValidPosition = !_EnableCollider || SampleCollider(textureCoord);
@@ -645,13 +700,13 @@ public class RenderRoom : MonoBehaviour
                 "\n");
         }
 
-        // Find the texture data in kvlist
+        // Find the texture data in kvlist and cache via property setters
         var textureData = kvlist.FirstOrDefault(kv => kv.Key == "texture");
         if (textureData.Value is Newtonsoft.Json.Linq.JArray textureArray)
         {
             CurrentTexture = textureArray.ToString(Newtonsoft.Json.Formatting.None);
         }
-        
+
         var colliderData = kvlist.FirstOrDefault(kv => kv.Key == "collider");
         if (colliderData.Value is Newtonsoft.Json.Linq.JArray colliderArray)
         {
@@ -665,27 +720,12 @@ public class RenderRoom : MonoBehaviour
             var jsonArray = wallsData.Value as Newtonsoft.Json.Linq.JArray;
             if (jsonArray != null)
             {
-                _currentWallSegments.Clear();
-
-                foreach (var segmentData in jsonArray)
-                {
-                    WallSegment segment = new()
-                    {
-                        x1 = segmentData["x1"].ToObject<float>(),
-                        z1 = segmentData["z1"].ToObject<float>(),
-                        x2 = segmentData["x2"].ToObject<float>(),
-                        z2 = segmentData["z2"].ToObject<float>(),
-                        height = segmentData["height"].ToObject<float>(),
-                        nx = segmentData["nx"] != null ? segmentData["nx"].ToObject<float>() : 0f,
-                        nz = segmentData["nz"] != null ? segmentData["nz"].ToObject<float>() : 0f
-                    };
-                    _currentWallSegments.Add(segment);
-                }
-
-                // Generate wall geometry after all data is loaded
-                GenerateWallQuads();
+                Walls = jsonArray.ToString(Newtonsoft.Json.Formatting.None);
             }
         }
+
+        // Atomically apply all cached properties
+        // ApplyWallProperties = true;
 
         EnsureFloorMaterialInstance();
     }
@@ -830,6 +870,106 @@ public class RenderRoom : MonoBehaviour
         return quad;
     }
 
+    private void ApplyCachedWallProperties()
+    {
+        Debug.Log("=== ApplyCachedWallProperties START ===");
+        Debug.Log($"_hasWallPropertyCache: {_hasWallPropertyCache}");
+        Debug.Log($"_cachedCollider length: {(_cachedCollider != null ? _cachedCollider.Length : 0)}");
+        Debug.Log($"_cachedWalls length: {(_cachedWalls != null ? _cachedWalls.Length : 0)}");
+        Debug.Log($"_cachedTexture length: {(_cachedTexture != null ? _cachedTexture.Length : 0)}");
+        Debug.Log($"_cachedWallColor1: {_cachedWallColor1}");
+        Debug.Log($"_cachedWallColor2: {_cachedWallColor2}");
+
+        if (!_hasWallPropertyCache)
+        {
+            Debug.LogWarning("ApplyCachedWallProperties: No cached properties to apply");
+            return;
+        }
+
+        // Step 1: Apply collider first (independent)
+        if (!string.IsNullOrEmpty(_cachedCollider))
+        {
+            Debug.Log($"Applying cached collider (length: {_cachedCollider.Length})");
+            ApplyCurrentCollider(_cachedCollider);
+        }
+        else
+        {
+            Debug.LogWarning("Cached collider is null or empty");
+        }
+
+        // Step 2: Apply walls (creates geometry)
+        if (!string.IsNullOrEmpty(_cachedWalls))
+        {
+            Debug.Log($"Applying cached walls (length: {_cachedWalls.Length})");
+            ApplyWalls(_cachedWalls);
+            Debug.Log($"Walls applied, wallQuads count: {wallQuads.Count}");
+        }
+        else
+        {
+            Debug.LogWarning("Cached walls is null or empty");
+        }
+
+        // Step 3: Apply wall shader properties
+        if (!EnsureWallMaterialInstance() || wallMaterialInstance == null)
+        {
+            Debug.LogWarning("ApplyCachedWallProperties: No wall material instance");
+        }
+        else
+        {
+            Debug.Log("Applying wall shader properties");
+            _wallColor1 = _cachedWallColor1;
+            _wallColor2 = _cachedWallColor2;
+            _noiseScale = _cachedNoiseScale;
+            _useBandNoise = _cachedUseBandNoise;
+            _bandFrequencies = _cachedBandFrequencies;
+            _bandAmplitudes = _cachedBandAmplitudes;
+
+            if (wallMaterialSupportsProperties)
+            {
+                wallMaterialInstance.SetColor(_Color1ID, _wallColor1);
+                wallMaterialInstance.SetColor(_Color2ID, _wallColor2);
+                wallMaterialInstance.SetFloat(_NoiseScaleID, _noiseScale);
+                wallMaterialInstance.SetFloat(_UseBandNoiseID, _useBandNoise ? 1f : 0f);
+                wallMaterialInstance.SetVector(_BandFrequenciesID, _bandFrequencies);
+                wallMaterialInstance.SetVector(_BandAmplitudesID, _bandAmplitudes);
+
+                Debug.Log($"Wall shader properties set: Color1={_wallColor1}, Color2={_wallColor2}, NoiseScale={_noiseScale}, UseBandNoise={_useBandNoise}");
+
+                wallMaterialAppliedOnce = true;
+                _appliedWallColor1 = _wallColor1;
+                _appliedWallColor2 = _wallColor2;
+                _appliedNoiseScale = _noiseScale;
+                _appliedUseBandNoise = _useBandNoise;
+                _appliedBandFrequencies = _bandFrequencies;
+                _appliedBandAmplitudes = _bandAmplitudes;
+
+                UpdateWallPropertyBlocks();
+                Debug.Log("UpdateWallPropertyBlocks completed");
+            }
+            else
+            {
+                Debug.LogWarning("Wall material does not support properties");
+            }
+        }
+
+        // Step 4: Apply texture (after walls exist, so floor material is set up)
+        if (!string.IsNullOrEmpty(_cachedTexture))
+        {
+            Debug.Log($"Applying cached texture (length: {_cachedTexture.Length})");
+            ApplyCurrentTexture(_cachedTexture);
+            Debug.Log("Texture applied");
+        }
+        else
+        {
+            Debug.LogWarning("Cached texture is null or empty");
+        }
+
+        wallMaterialDirty = false;
+        wallNeedsPostTextureApply = false;
+
+        Debug.Log("=== ApplyCachedWallProperties END ===");
+    }
+
     private void ApplyWallMaterialProperties()
     {
         if (!wallMaterialDirty)
@@ -843,14 +983,14 @@ public class RenderRoom : MonoBehaviour
             return;
         }
 
-        Debug.Log($"RenderRoom.ApplyWallMaterialProperties wallMat={wallMaterialInstance.name}, floorMat={renderer?.sharedMaterial?.name}");
-        Debug.Log($"Applying wall material properties: Color1={_wallColor1}, Color2={_wallColor2}, NoiseScale={_noiseScale}, UseBandNoise={_useBandNoise}, BandFreq={_bandFrequencies}, BandAmp={_bandAmplitudes}");
         wallMaterialInstance.SetColor(_Color1ID, _wallColor1);
         wallMaterialInstance.SetColor(_Color2ID, _wallColor2);
         wallMaterialInstance.SetFloat(_NoiseScaleID, _noiseScale);
         wallMaterialInstance.SetFloat(_UseBandNoiseID, _useBandNoise ? 1f : 0f);
         wallMaterialInstance.SetVector(_BandFrequenciesID, _bandFrequencies);
         wallMaterialInstance.SetVector(_BandAmplitudesID, _bandAmplitudes);
+        var matColor = wallMaterialInstance.GetColor(_Color1ID);
+        Debug.Log($"Wall material now has Color1 = {matColor}");
         wallMaterialDirty = false;
         wallMaterialAppliedOnce = true;
         _appliedWallColor1 = _wallColor1;
