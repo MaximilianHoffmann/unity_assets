@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 6750449342047079907}
   - component: {fileID: -5030195693623021711}
   - component: {fileID: -3501616547746925969}
+  - component: {fileID: -4185068228556771365}
   m_Layer: 0
   m_Name: Room
   m_TagString: Untagged
@@ -61,7 +62,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 99f951c88e45858509ff106a0a6bc564, type: 2}
+  - {fileID: 2100000, guid: 999fa00d659a3b0b6831f40bb77be53b, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -83,3 +84,21 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &-4185068228556771365
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1431748824075443124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 46e079416676b225f8f07efabb958968, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  wallMaterial: {fileID: 2100000, guid: 6bce6a896933bcbd4ab1d1df161ef8f1, type: 2}
+  _attachToPlayer: 0
+  _Visible: 0
+  _WallsVisible: 0
+  _useBandNoise: 0
+  _EnableCollider: 0

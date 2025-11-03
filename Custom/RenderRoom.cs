@@ -12,7 +12,7 @@ public class RenderRoom : MonoBehaviour
     private const float PlaneHalfSize = 5f; // Unity plane spans [-5, 5] in local space
 
     private Transform avatar;
-    private Material mat;
+    private Material floorMaterialInstance;
     private MeshRenderer renderer;
     private string logFilePath;
 
@@ -43,6 +43,7 @@ public class RenderRoom : MonoBehaviour
     private Vector3 _appliedBandFrequencies;
     private Vector3 _appliedBandAmplitudes;
     private MaterialPropertyBlock wallPropertyBlock;
+    private bool wallMaterialSupportsProperties = false;
 
     [SerializeField]
     private bool _attachToPlayer = false;
@@ -194,31 +195,90 @@ public class RenderRoom : MonoBehaviour
     public string CurrentTexture
     {
         get { return "texture"; }
-        set { 
-            // Parse the JSON string into a JArray
-            var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
-            if (jsonArray != null)
+        set
+        {
+            try
             {
+                var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
+                if (jsonArray == null || jsonArray.Count == 0)
+                {
+                    Debug.LogWarning("RenderRoom.CurrentTexture received empty payload");
+                    return;
+                }
+
                 int height = jsonArray.Count;
-                int width = jsonArray[0].Count();
-                Color[] pixels = new Color[width * height];
+                int width = (jsonArray[0] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0;
+                if (width == 0)
+                {
+                    Debug.LogWarning("RenderRoom.CurrentTexture received rows with zero length");
+                    return;
+                }
+
+                if (_currentTexture == null || _currentTexture.width != width || _currentTexture.height != height)
+                {
+                    if (_currentTexture != null)
+                    {
+                        if (Application.isPlaying)
+                        {
+                            Destroy(_currentTexture);
+                        }
+                        else
+                        {
+                            DestroyImmediate(_currentTexture);
+                        }
+                    }
+
+                    _currentTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+                    {
+                        filterMode = FilterMode.Point,
+                        wrapMode = TextureWrapMode.Clamp
+                    };
+                }
+
+                var pixels = _currentTexture.GetPixels();
+                if (pixels.Length != width * height)
+                {
+                    pixels = new Color[width * height];
+                }
+
+                int index = 0;
                 for (int y = 0; y < height; y++)
                 {
-                    for (int x = 0; x < width; x++)
+                    var row = jsonArray[y] as Newtonsoft.Json.Linq.JArray;
+                    if (row == null || row.Count != width)
                     {
-                        var rgb = jsonArray[y][x].ToObject<float[]>();
-                        pixels[y * width + x] = new Color(rgb[0], rgb[1], rgb[2], 1f);
-                  
+                        Debug.LogWarning($"RenderRoom.CurrentTexture row {y} has unexpected length");
+                        return;
+                    }
+
+                    for (int x = 0; x < width; x++, index++)
+                    {
+                        var rgbToken = row[x];
+                        var rgb = rgbToken?.ToObject<float[]>();
+                        pixels[index] = (rgb != null && rgb.Length >= 3)
+                            ? new Color(rgb[0], rgb[1], rgb[2], 1f)
+                            : Color.black;
                     }
                 }
-                Texture2D texture = new Texture2D(width, height);
-                texture.filterMode = FilterMode.Point;  
-                texture.SetPixels(pixels);
-                texture.Apply();
-                _currentTexture = texture;  
-                GetComponent<Renderer>().material.mainTexture = texture;
+
+                _currentTexture.SetPixels(pixels);
+                _currentTexture.Apply(false);
+
+                if (!EnsureFloorMaterialInstance())
+                {
+                    Debug.LogWarning("RenderRoom.CurrentTexture could not access floor material");
+                    return;
+                }
+
+                floorMaterialInstance.mainTexture = _currentTexture;
+                Debug.Log($"RenderRoom.CurrentTexture applied {width}x{height}, renderer mat={renderer.sharedMaterial?.name}");
             }
-        }}
+            catch (Exception ex)
+            {
+                Debug.LogError($"RenderRoom.CurrentTexture failed: {ex}");
+            }
+        }
+    }
         
     private Texture2D _currentTexture; 
     public string CurrentCollider
@@ -242,6 +302,107 @@ public class RenderRoom : MonoBehaviour
             }
         }
     private int[,] _currentCollider;
+
+    private bool EnsureFloorMaterialInstance()
+    {
+        if (renderer == null)
+        {
+            renderer = GetComponent<MeshRenderer>();
+        }
+
+        if (renderer == null)
+        {
+            return false;
+        }
+
+        if (floorMaterialInstance == null)
+        {
+            var shared = renderer.sharedMaterial;
+            if (shared != null)
+            {
+                floorMaterialInstance = new Material(shared);
+            }
+            else
+            {
+                floorMaterialInstance = new Material(Shader.Find("Standard"));
+            }
+        }
+
+        var sharedMaterials = renderer.sharedMaterials;
+        if (sharedMaterials == null || sharedMaterials.Length == 0)
+        {
+            renderer.sharedMaterial = floorMaterialInstance;
+        }
+        else
+        {
+            if (!ReferenceEquals(sharedMaterials[0], floorMaterialInstance))
+            {
+                sharedMaterials[0] = floorMaterialInstance;
+                renderer.sharedMaterials = sharedMaterials;
+            }
+        }
+
+        renderer.enabled = _Visible;
+
+        return floorMaterialInstance != null;
+    }
+
+    private bool EnsureWallMaterialInstance()
+    {
+        if (wallMaterialInstance == null)
+        {
+            Material sourceMaterial = wallMaterial;
+            if (sourceMaterial != null && sourceMaterial.shader != null && sourceMaterial.shader.name == "Custom/RoomWall")
+            {
+                wallMaterialInstance = new Material(sourceMaterial);
+            }
+            else
+            {
+                if (sourceMaterial != null && sourceMaterial.shader != null)
+                {
+                    Debug.LogWarning($"RenderRoom: Assigned wall material uses shader '{sourceMaterial.shader.name}'. Expected 'Custom/RoomWall'. Falling back to shader lookup.");
+                }
+
+                Shader roomWallShader = Shader.Find("Custom/RoomWall");
+                if (roomWallShader != null)
+                {
+                    wallMaterialInstance = new Material(roomWallShader);
+                    Debug.Log("RenderRoom: Created wall material from Custom/RoomWall shader");
+                }
+                else
+                {
+                    Debug.LogWarning("RenderRoom: Custom/RoomWall shader not found. Wall properties will be disabled.");
+                }
+            }
+
+            if (wallMaterialInstance != null)
+            {
+                wallMaterialSupportsProperties =
+                    wallMaterialInstance.HasProperty(_Color1ID) &&
+                    wallMaterialInstance.HasProperty(_Color2ID) &&
+                    wallMaterialInstance.HasProperty(_NoiseScaleID) &&
+                    wallMaterialInstance.HasProperty(_UseBandNoiseID) &&
+                    wallMaterialInstance.HasProperty(_BandFrequenciesID) &&
+                    wallMaterialInstance.HasProperty(_BandAmplitudesID);
+
+                if (!wallMaterialSupportsProperties)
+                {
+                    Debug.LogWarning("RenderRoom: Wall material is missing expected shader properties; disabling wall property updates.");
+                }
+                else if (wallMaterialInstance.HasProperty(_SeedID))
+                {
+                    wallMaterialInstance.SetFloat(_SeedID, UnityEngine.Random.value * 1000f);
+                    wallMaterialDirty = true;
+                }
+            }
+            else
+            {
+                wallMaterialSupportsProperties = false;
+            }
+        }
+
+        return wallMaterialInstance != null;
+    }
 
     public string Walls
     {
@@ -366,19 +527,13 @@ public class RenderRoom : MonoBehaviour
         if (avatar == null)
             return;
 
-        // Check if visibility has changed (handles reflection-based property setting from ROS)
-        if (_Visible != _lastVisibleState || _WallsVisible != _lastWallsVisibleState)
-        {
-            _lastVisibleState = _Visible;
-            _lastWallsVisibleState = _WallsVisible;
-            UpdateWallVisibility();
-
+      
             // Also update floor renderer
-            if (renderer != null)
-            {
-                renderer.enabled = _Visible;
-            }
+        if (renderer != null)
+        {
+            renderer.enabled = _Visible;
         }
+        
 
         if (!ApproximatelyEqual(transform.localScale, _lastRoomScale))
         {
@@ -425,16 +580,16 @@ public class RenderRoom : MonoBehaviour
             RecenterAvatar();
         }
 
-        if (_currentTexture != null)
-        {
-            Color pixelColor = SampleTexture(textureCoord);
-            bool colliderColor = SampleCollider(textureCoord);
-            // Debug.Log($"Local X: {localPos.x}, Local Z: {localPos.z}, X: {avatar.position.x}, Z: {avatar.position.z}");
-            // Debug.Log($"Avatar at texture coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {pixelColor}");
-            // Debug.Log($"Avatar at collider coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {colliderColor}");
-            // Debug.Log($"Local Scale: {transform.localScale}");
+        // if (_currentTexture != null)
+        // {
+        //     Color pixelColor = SampleTexture(textureCoord);
+        //     bool colliderColor = SampleCollider(textureCoord);
+        //     // Debug.Log($"Local X: {localPos.x}, Local Z: {localPos.z}, X: {avatar.position.x}, Z: {avatar.position.z}");
+        //     // Debug.Log($"Avatar at texture coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {pixelColor}");
+        //     // Debug.Log($"Avatar at collider coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {colliderColor}");
+        //     // Debug.Log($"Local Scale: {transform.localScale}");
         }
-    }
+    
 
     private Color SampleTexture(Vector2 uv)
     {
@@ -468,13 +623,16 @@ public class RenderRoom : MonoBehaviour
         transform.localScale=scale;
      
         renderer = GetComponent<MeshRenderer>();
-        renderer.enabled = false;
-        avatar = GameObject.Find("Avatar").transform;
+        if (renderer != null)
+        {
+            renderer.enabled = false;
+        }
+        avatar = GameObject.Find("Avatar")?.transform;
 
 
         string gameObjectName = gameObject.name;
         
-             
+         
         
         logFilePath = SetROSBridge.LogFilePath + "_" + gameObjectName+".csv";
         Debug.Log($"Log file path: {logFilePath}");
@@ -489,55 +647,15 @@ public class RenderRoom : MonoBehaviour
 
         // Find the texture data in kvlist
         var textureData = kvlist.FirstOrDefault(kv => kv.Key == "texture");
-        if (textureData.Value != null)
+        if (textureData.Value is Newtonsoft.Json.Linq.JArray textureArray)
         {
-            // Convert the JSON array structure to a C# array
-            var jsonArray = textureData.Value as Newtonsoft.Json.Linq.JArray;
-            if (jsonArray != null)
-            {
-                int height = jsonArray.Count;
-                int width = jsonArray[0].Count();
-                Color[] pixels = new Color[width * height];
-                
-                for (int y = 0; y < height; y++)
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        var rgb = jsonArray[y][x].ToObject<float[]>();
-                        pixels[y * width + x] = new Color(rgb[0], rgb[1], rgb[2], 1f);
-                  
-                    }
-                }
-
-                // Create and apply the texture
-                Texture2D texture = new Texture2D(width, height);
-                texture.filterMode = FilterMode.Point;  // For nearest neighbor sampling
-                texture.SetPixels(pixels);
-                texture.Apply();
-
-                _currentTexture = texture;  // Save reference to texture
-                GetComponent<Renderer>().material.mainTexture = texture;
-            }
+            CurrentTexture = textureArray.ToString(Newtonsoft.Json.Formatting.None);
         }
         
         var colliderData = kvlist.FirstOrDefault(kv => kv.Key == "collider");
-        if (colliderData.Value != null)
+        if (colliderData.Value is Newtonsoft.Json.Linq.JArray colliderArray)
         {
-            var jsonArray = colliderData.Value as Newtonsoft.Json.Linq.JArray;
-            if (jsonArray != null)
-            {
-                int height = jsonArray.Count;
-                int width = jsonArray[0].Count();
-                _currentCollider = new int[height, width];
-
-                for (int y = 0; y < height; y++)
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        _currentCollider[y, x] = jsonArray[y][x].ToObject<int>();
-                    }
-                }
-            }
+            CurrentCollider = colliderArray.ToString(Newtonsoft.Json.Formatting.None);
         }
 
         // Check for wall segment data
@@ -569,10 +687,7 @@ public class RenderRoom : MonoBehaviour
             }
         }
 
-        if (GetComponent<MeshRenderer>() != null)
-        {
-            mat = GetComponent<MeshRenderer>().material;
-        }
+        EnsureFloorMaterialInstance();
     }
 
     private Vector3 DefaultOffset  = new Vector3 (0,-1,0);
@@ -614,33 +729,9 @@ public class RenderRoom : MonoBehaviour
 
         ConfigureWallContainerTransform();
 
-        // Create or find wall material instance
-        if (wallMaterialInstance == null)
+        bool haveWallMaterial = EnsureWallMaterialInstance();
+        if (haveWallMaterial && wallMaterialSupportsProperties)
         {
-            if (wallMaterial != null)
-            {
-                // Create instance from assigned material
-                wallMaterialInstance = new Material(wallMaterial);
-            }
-            else
-            {
-                // Try to find RoomWall shader
-                Shader roomWallShader = Shader.Find("Custom/RoomWall");
-                if (roomWallShader != null)
-                {
-                    wallMaterialInstance = new Material(roomWallShader);
-                    Debug.Log("Created wall material from RoomWall shader");
-                }
-                else
-                {
-                    // Fallback to standard shader
-                    wallMaterialInstance = new Material(Shader.Find("Standard"));
-                    Debug.LogWarning("RoomWall shader not found, using Standard shader");
-                }
-            }
-
-            // Set initial colors and noise parameters
-            wallMaterialInstance.SetFloat(_SeedID, UnityEngine.Random.value * 1000f);
             wallMaterialDirty = true;
             ApplyWallMaterialProperties();
         }
@@ -715,7 +806,7 @@ public class RenderRoom : MonoBehaviour
 
         // Apply the shared wall material instance
         MeshRenderer quadRenderer = quad.GetComponent<MeshRenderer>();
-        if (wallMaterialInstance != null)
+        if (EnsureWallMaterialInstance() && wallMaterialInstance != null)
         {
             quadRenderer.sharedMaterial = wallMaterialInstance;
         }
@@ -736,21 +827,23 @@ public class RenderRoom : MonoBehaviour
         quadRenderer.enabled = _Visible && _WallsVisible;
         Debug.Log($"Created wall quad with renderer.enabled={quadRenderer.enabled} (_Visible={_Visible}, _WallsVisible={_WallsVisible})");
 
-        if (wallMaterialInstance != null)
-        {
-            ApplyWallMaterialProperties();
-        }
-
         return quad;
     }
 
     private void ApplyWallMaterialProperties()
     {
-        if (wallMaterialInstance == null || !wallMaterialDirty)
+        if (!wallMaterialDirty)
         {
             return;
         }
 
+        if (!EnsureWallMaterialInstance() || wallMaterialInstance == null || !wallMaterialSupportsProperties)
+        {
+            wallMaterialDirty = false;
+            return;
+        }
+
+        Debug.Log($"RenderRoom.ApplyWallMaterialProperties wallMat={wallMaterialInstance.name}, floorMat={renderer?.sharedMaterial?.name}");
         Debug.Log($"Applying wall material properties: Color1={_wallColor1}, Color2={_wallColor2}, NoiseScale={_noiseScale}, UseBandNoise={_useBandNoise}, BandFreq={_bandFrequencies}, BandAmp={_bandAmplitudes}");
         wallMaterialInstance.SetColor(_Color1ID, _wallColor1);
         wallMaterialInstance.SetColor(_Color2ID, _wallColor2);
@@ -767,6 +860,11 @@ public class RenderRoom : MonoBehaviour
         _appliedBandFrequencies = _bandFrequencies;
         _appliedBandAmplitudes = _bandAmplitudes;
         UpdateWallPropertyBlocks();
+
+        if (_currentTexture != null && EnsureFloorMaterialInstance())
+        {
+            floorMaterialInstance.mainTexture = _currentTexture;
+        }
     }
 
     private void DetectExternalWallMaterialChanges()
@@ -790,7 +888,7 @@ public class RenderRoom : MonoBehaviour
 
     private void UpdateWallPropertyBlocks()
     {
-        if (wallQuads.Count == 0)
+        if (!wallMaterialSupportsProperties || wallQuads.Count == 0 || wallMaterialInstance == null)
         {
             return;
         }

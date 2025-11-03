@@ -228,15 +228,15 @@ public class RenderFloorplan : MonoBehaviour
             RecenterAvatar();
         }
 
-        if (_currentTexture != null)
-        {
-            Color pixelColor = SampleTexture(textureCoord);
-            bool colliderColor = SampleCollider(textureCoord);
-            // Debug.Log($"Local X: {localPos.x}, Local Z: {localPos.z}, X: {avatar.position.x}, Z: {avatar.position.z}");
-            // Debug.Log($"Avatar at texture coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {pixelColor}");
-            // Debug.Log($"Avatar at collider coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {colliderColor}");
-            // Debug.Log($"Local Scale: {transform.localScale}");
-        }
+        // if (_currentTexture != null)
+        // {
+        //     Color pixelColor = SampleTexture(textureCoord);
+        //     bool colliderColor = SampleCollider(textureCoord);
+        //     // Debug.Log($"Local X: {localPos.x}, Local Z: {localPos.z}, X: {avatar.position.x}, Z: {avatar.position.z}");
+        //     // Debug.Log($"Avatar at texture coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {pixelColor}");
+        //     // Debug.Log($"Avatar at collider coordinate ({textureCoord.x:F2}, {textureCoord.y:F2}), Color: {colliderColor}");
+        //     // Debug.Log($"Local Scale: {transform.localScale}");
+        // }
     }
 
     private Color SampleTexture(Vector2 uv)
