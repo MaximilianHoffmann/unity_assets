@@ -9,31 +9,33 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: RectangularDisplayMat
   m_Shader: {fileID: 4800000, guid: c34c699ed6f8d47bb97533130fd7122e, type: 3}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
-  m_InvalidKeywords: []
+  m_InvalidKeywords:
+  - _SWITCHONGRATING_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
-  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: []
+    m_TexEnvs:
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _GratingDensity: 20
+    - _GratingDensity: 8.4
     - _HorizontalArmLength: 0.5
-    - _HorizontalArmThickness: 0.05
-    - _Rotation: 0
-    - _SwitchOnGrating: 0
-    - _VerticalArmLength: 0.5
-    - _VerticalArmThickness: 0.05
+    - _HorizontalArmThickness: 0.085
+    - _Rotation: 60
+    - _SwitchOnGrating: 1
+    - _SwitchOnTexture: 0
+    - _VerticalArmLength: 0.482
+    - _VerticalArmThickness: 0.071
     m_Colors:
     - _Color1: {r: 1, g: 1, b: 1, a: 1}
     - _Color2: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []
-  m_AllowLocking: 1

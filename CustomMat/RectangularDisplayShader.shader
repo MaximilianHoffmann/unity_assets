@@ -11,6 +11,8 @@ Shader "Custom/RectangularDisplayShader"
         _Rotation ("Rotation", Range(0, 360)) = 0
         _GratingDensity ("Grating Density", Range(0, 100)) = 20
         [MaterialToggle] _SwitchOnGrating ( "Switch On Grating", Float ) = 0
+        [MaterialToggle] _SwitchOnTexture ( "Switch On Texture", Float ) = 0
+        _MainTex ("Texture", 2D) = "white" {}
     }
 
     SubShader
@@ -49,6 +51,8 @@ Shader "Custom/RectangularDisplayShader"
             float _Rotation;
             float _GratingDensity;
             float _SwitchOnGrating;
+            float _SwitchOnTexture;
+            sampler2D _MainTex;
 
             v2f vert (appdata v)
             {
@@ -60,6 +64,12 @@ Shader "Custom/RectangularDisplayShader"
 
             half4 frag (v2f i) : SV_Target
             {
+                // Texture mode: sample the texture directly (no rotation applied)
+                if (_SwitchOnTexture > 0.5)
+                {
+                    return tex2D(_MainTex, i.uv);
+                }
+
                 half2 uv = i.uv - half2(0.5, 0.5); // Centering the UV coordinates
 
                 // Rotate the UV coordinates if necessary
@@ -81,8 +91,8 @@ Shader "Custom/RectangularDisplayShader"
                 else
                 {
                     // Draw cross
-                    if ((uv.x > 0.5 - _HorizontalArmThickness && uv.x < 0.5 + _HorizontalArmThickness && 
-                         uv.y > 0.5 - _HorizontalArmLength * 0.5 && uv.y < 0.5 + _HorizontalArmLength * 0.5) || 
+                    if ((uv.x > 0.5 - _HorizontalArmThickness && uv.x < 0.5 + _HorizontalArmThickness &&
+                         uv.y > 0.5 - _HorizontalArmLength * 0.5 && uv.y < 0.5 + _HorizontalArmLength * 0.5) ||
                         (uv.y > 0.5 - _VerticalArmThickness && uv.y < 0.5 + _VerticalArmThickness &&
                          uv.x > 0.5 - _VerticalArmLength * 0.5 && uv.x < 0.5 + _VerticalArmLength * 0.5))
                     {

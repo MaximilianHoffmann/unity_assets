@@ -49,29 +49,55 @@ public class RenderFloorplan : MonoBehaviour
     public string CurrentTexture
     {
         get { return "texture"; }
-        set { 
-            // Parse the JSON string into a JArray
+        set {
+            string trimmed = value.TrimStart();
+            if (!trimmed.StartsWith("["))
+            {
+                // File path — load image from disk
+                if (!System.IO.File.Exists(value))
+                {
+                    Debug.LogError($"RenderFloorplan.CurrentTexture file not found: {value}");
+                    return;
+                }
+                byte[] fileData = System.IO.File.ReadAllBytes(value);
+                Texture2D texture = new Texture2D(2, 2);
+                texture.filterMode = FilterMode.Point;
+                ImageConversion.LoadImage(texture, fileData);
+                _currentTexture = texture;
+                var material = GetComponent<Renderer>().material;
+                material.mainTexture = texture;
+                if (texture.format == TextureFormat.RGBA32 || texture.format == TextureFormat.ARGB32)
+                    SetMaterialTransparent(material);
+                Debug.Log($"RenderFloorplan: Loaded texture from file {value} ({texture.width}x{texture.height})");
+                return;
+            }
+
+            // JSON array path (backward compatible)
             var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
             if (jsonArray != null)
             {
                 int height = jsonArray.Count;
                 int width = jsonArray[0].Count();
                 Color[] pixels = new Color[width * height];
+                bool hasAlpha = false;
                 for (int y = 0; y < height; y++)
                 {
                     for (int x = 0; x < width; x++)
                     {
-                        var rgb = jsonArray[y][x].ToObject<float[]>();
-                        pixels[y * width + x] = new Color(rgb[0], rgb[1], rgb[2], 1f);
-                  
+                        var ch = jsonArray[y][x].ToObject<float[]>();
+                        float a = ch.Length > 3 ? ch[3] : 1f;
+                        if (a < 1f) hasAlpha = true;
+                        pixels[y * width + x] = new Color(ch[0], ch[1], ch[2], a);
                     }
                 }
                 Texture2D texture = new Texture2D(width, height);
-                texture.filterMode = FilterMode.Point;  
+                texture.filterMode = FilterMode.Point;
                 texture.SetPixels(pixels);
                 texture.Apply();
-                _currentTexture = texture;  
-                GetComponent<Renderer>().material.mainTexture = texture;
+                _currentTexture = texture;
+                var material = GetComponent<Renderer>().material;
+                material.mainTexture = texture;
+                if (hasAlpha) SetMaterialTransparent(material);
             }
         }}
         
@@ -271,10 +297,12 @@ public class RenderFloorplan : MonoBehaviour
 
     public void OnCreate(Vector3 position, Quaternion rotation, Vector3 scale, Color color, KeyValuePair<string, object>[] kvlist)
     {
-       
+
         transform.localScale=scale;
-     
+
         renderer = GetComponent<MeshRenderer>();
+        // Initialize to match Python's default state (False)
+        _Visible = false;
         renderer.enabled = false;
         avatar = GameObject.Find("Avatar").transform;
 
@@ -305,25 +333,29 @@ public class RenderFloorplan : MonoBehaviour
                 int height = jsonArray.Count;
                 int width = jsonArray[0].Count();
                 Color[] pixels = new Color[width * height];
-                
+                bool hasAlpha = false;
+
                 for (int y = 0; y < height; y++)
                 {
                     for (int x = 0; x < width; x++)
                     {
-                        var rgb = jsonArray[y][x].ToObject<float[]>();
-                        pixels[y * width + x] = new Color(rgb[0], rgb[1], rgb[2], 1f);
-                  
+                        var ch = jsonArray[y][x].ToObject<float[]>();
+                        float a = ch.Length > 3 ? ch[3] : 1f;
+                        if (a < 1f) hasAlpha = true;
+                        pixels[y * width + x] = new Color(ch[0], ch[1], ch[2], a);
                     }
                 }
 
                 // Create and apply the texture
                 Texture2D texture = new Texture2D(width, height);
-                texture.filterMode = FilterMode.Point;  // For nearest neighbor sampling
+                texture.filterMode = FilterMode.Point;
                 texture.SetPixels(pixels);
                 texture.Apply();
 
-                _currentTexture = texture;  // Save reference to texture
-                GetComponent<Renderer>().material.mainTexture = texture;
+                _currentTexture = texture;
+                var material = GetComponent<Renderer>().material;
+                material.mainTexture = texture;
+                if (hasAlpha) SetMaterialTransparent(material);
             }
         }
         
@@ -364,5 +396,17 @@ public class RenderFloorplan : MonoBehaviour
     }
 
     private Vector3 DefaultOffset  = new Vector3 (0,-1,0);
+
+    private void SetMaterialTransparent(Material material)
+    {
+        material.SetFloat("_Mode", 3); // Transparent
+        material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        material.SetInt("_ZWrite", 0);
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        material.renderQueue = 3000;
+    }
 
 }
