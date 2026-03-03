@@ -805,7 +805,7 @@ public class RenderRoom : MonoBehaviour
 
     private bool SampleCollider(Vector2 uv)
     {
-        if (_currentCollider == null) return false;
+        if (_currentCollider == null) return true;
 
         int width = _currentCollider.GetLength(1);
         int height = _currentCollider.GetLength(0);
@@ -890,52 +890,6 @@ public class RenderRoom : MonoBehaviour
 
 
     /// <summary>
-    /// Generates wall quad GameObjects from pre-computed wall segments.
-    /// Segments are provided in world coordinates (local to the RenderRoom transform).
-    /// </summary>
-    private void GenerateWallQuads()
-    {
-        // Clean up existing walls
-        DestroyWalls();
-
-        if (_currentWallSegments == null || _currentWallSegments.Count == 0)
-        {
-            Debug.Log("No wall segments to render");
-            return;
-        }
-
-        // Create wall container if needed
-        if (wallContainer == null)
-        {
-            wallContainer = new GameObject("Walls");
-            wallContainer.transform.SetParent(transform, false);
-        }
-
-        ConfigureWallContainerTransform();
-
-        bool haveWallMaterial = EnsureWallMaterialInstance();
-        if (haveWallMaterial && wallMaterialSupportsProperties)
-        {
-            wallMaterialDirty = true;
-            ApplyWallMaterialProperties();
-        }
-
-        foreach (var segment in _currentWallSegments)
-        {
-            GameObject wallQuad = CreateWallQuad(segment);
-            wallQuad.transform.SetParent(wallContainer.transform, false);
-            wallQuads.Add(wallQuad);
-        }
-
-        Debug.Log($"Generated {wallQuads.Count} wall quads from {_currentWallSegments.Count} segments");
-
-        // Ensure all wall renderers have the latest material properties applied
-        UpdateWallPropertyBlocks();
-
-        // Update wall visibility to match current settings
-        UpdateWallVisibility();
-    }
-
     /// <summary>
     /// Creates a vertical quad GameObject between two points on the ground.
     /// </summary>
