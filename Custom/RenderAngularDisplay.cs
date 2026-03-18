@@ -3,6 +3,7 @@ using UnityEngine;
 using System.IO;
 using System;
 using System.Data;
+using System.Collections.Generic;
 
 // Don't forget to change the class name when using this as a template
 // for implementing new objects with custom behaviors
@@ -85,7 +86,7 @@ public class RenderAngularDisplay : MonoBehaviour
         Vector3 pos=new Vector3(0,0,0);
         Quaternion rot = new Quaternion(0,0,0,1);
         Color white= new Color(1,1,1,1);
-        OnCreate(pos,rot,5,20,white);
+        OnCreate(pos,rot,new Vector3(20,5,20),white);
         #endif
      
     }
@@ -133,17 +134,17 @@ public class RenderAngularDisplay : MonoBehaviour
     
     // OnCreate() is required to properly instantiate the object with the correct properties
     // The method must take the listed inputs -- no more, no less (even if some are not used)
-    public void OnCreate(Vector3 position, Quaternion rotation, float height, float radius, Color color)
+    public void OnCreate(Vector3 position, Quaternion rotation, Vector3 scale, Color color, KeyValuePair<string, object>[] kvlist = null)
     {
-        
-        
+
+
         logFilePath = SetROSBridge.LogFilePath + "_angular_display.csv";
 
         if (!File.Exists(logFilePath))
         {
             File.Create(logFilePath).Close();
         }
-        
+
         renderer = GetComponent<MeshRenderer>();
         renderer.enabled=false;
         // // Uncomment to add player collisions with this object
@@ -157,7 +158,7 @@ public class RenderAngularDisplay : MonoBehaviour
         avatar = GameObject.Find("Avatar").transform;
         transform.localPosition = position;
         transform.localRotation = rotation;
-        transform.localScale = new Vector3(radius, height, radius);
+        transform.localScale = scale;
         lastScale=transform.localScale;
         
 
@@ -170,7 +171,8 @@ public class RenderAngularDisplay : MonoBehaviour
         {
             mat = GetComponent<MeshRenderer>().material;
             Aspect= transform.localScale.x/transform.localScale.y;
-
+            mat.SetFloat(_SwitchOnGrating1, 0.0f);
+            mat.SetFloat(_SwitchOnGrating2, 0.0f);
         }
 
     }
