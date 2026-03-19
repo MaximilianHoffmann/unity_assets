@@ -384,14 +384,69 @@ public class RenderRoom : MonoBehaviour
         get { return "collider"; }
         set
         {
+            Debug.Log($"[RenderRoom] CurrentCollider setter called, length={value?.Length ?? 0}");
             _cachedCollider = value;
             _hasWallPropertyCache = true;
+            // Parse immediately so the collider is ready regardless of ApplyWallProperties timing
+            StartCoroutine(ApplyCurrentColliderCoroutine(value));
         }
     }
 
     private IEnumerator ApplyCurrentColliderCoroutine(string value)
     {
-        // Parse JSON on background thread
+        string trimmed = value.TrimStart();
+        if (!trimmed.StartsWith("["))
+        {
+            // File path — load image and convert to collider (white > 128 = walkable)
+            if (!System.IO.File.Exists(value))
+            {
+                Debug.LogError($"RenderRoom.CurrentCollider file not found: {value}");
+                yield break;
+            }
+
+            byte[] fileData = null;
+            bool ioComplete = false;
+            bool ioError = false;
+
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try { fileData = File.ReadAllBytes(value); }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"RenderRoom collider file read failed: {ex.Message}");
+                    ioError = true;
+                }
+                ioComplete = true;
+            });
+
+            while (!ioComplete) yield return null;
+            if (ioError || fileData == null) yield break;
+
+            // Decode image on main thread
+            var texture = new Texture2D(2, 2);
+            ImageConversion.LoadImage(texture, fileData);
+
+            int width = texture.width;
+            int height = texture.height;
+            var pixels = texture.GetPixels();
+            var result = new int[height, width];
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    result[y, x] = (pixels[y * width + x].grayscale > 0.5f) ? 1 : 0;
+
+            if (Application.isPlaying) Destroy(texture);
+            else DestroyImmediate(texture);
+
+            _currentCollider = result;
+            wasLastPositionValid = false;
+            Debug.Log($"[RenderRoom] Collider loaded from file {value}: {height}x{width}, " +
+                      $"corners: TL={result[0,0]}, TR={result[0,width-1]}, " +
+                      $"BL={result[height-1,0]}, BR={result[height-1,width-1]}, " +
+                      $"center={result[height/2, width/2]}");
+            yield break;
+        }
+
+        // JSON array path (backward compatible)
         int[,] parsed = null;
         bool done = false;
         string error = null;
@@ -401,13 +456,13 @@ public class RenderRoom : MonoBehaviour
             try
             {
                 var jsonArray = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JArray>(value);
-                int height = jsonArray.Count;
-                int width = jsonArray[0].Count();
-                var result = new int[height, width];
-                for (int y = 0; y < height; y++)
-                    for (int x = 0; x < width; x++)
-                        result[y, x] = jsonArray[y][x].ToObject<int>();
-                parsed = result;
+                int h = jsonArray.Count;
+                int w = jsonArray[0].Count();
+                var r = new int[h, w];
+                for (int y = 0; y < h; y++)
+                    for (int x = 0; x < w; x++)
+                        r[y, x] = jsonArray[y][x].ToObject<int>();
+                parsed = r;
             }
             catch (Exception ex)
             {
@@ -420,12 +475,16 @@ public class RenderRoom : MonoBehaviour
 
         if (error != null)
         {
-            Debug.LogError($"ApplyCurrentCollider background parse failed: {error}");
+            Debug.LogError($"ApplyCurrentCollider JSON parse failed: {error}");
             yield break;
         }
 
         _currentCollider = parsed;
         wasLastPositionValid = false;
+        Debug.Log($"[RenderRoom] Collider parsed from JSON: {parsed.GetLength(0)}x{parsed.GetLength(1)}, " +
+                  $"corners: TL={parsed[0,0]}, TR={parsed[0,parsed.GetLength(1)-1]}, " +
+                  $"BL={parsed[parsed.GetLength(0)-1,0]}, BR={parsed[parsed.GetLength(0)-1,parsed.GetLength(1)-1]}, " +
+                  $"center={parsed[parsed.GetLength(0)/2, parsed.GetLength(1)/2]}");
     }
 
     private int[,] _currentCollider;
@@ -746,15 +805,29 @@ public class RenderRoom : MonoBehaviour
         {
              transform.position = avatar.position + DefaultOffset;
         }
+    }
+
+    void LateUpdate()
+    {
+        // Early return if avatar not yet initialized
+        if (avatar == null)
+            return;
 
         Vector3 localPos = transform.InverseTransformPoint(avatar.position);
         Vector2 textureCoord = new Vector2(
             ((-localPos.x / PlaneHalfSize) + 1.0f) / 2.0f,
             ((-localPos.z / PlaneHalfSize) + 1.0f) / 2.0f
         );
-        
-       
-        bool isValidPosition = !_EnableCollider || SampleCollider(textureCoord);
+
+
+        bool colliderResult = SampleCollider(textureCoord);
+        bool isValidPosition = !_EnableCollider || colliderResult;
+
+        Debug.Log($"[RenderRoom] EnableCollider={_EnableCollider}, colliderResult={colliderResult}, isValid={isValidPosition}, " +
+                  $"avatarPos=({avatar.position.x:F3},{avatar.position.z:F3}), " +
+                  $"localPos=({localPos.x:F3},{localPos.z:F3}), " +
+                  $"texCoord=({textureCoord.x:F3},{textureCoord.y:F3}), " +
+                  $"colliderNull={_currentCollider == null}, wasLastValid={wasLastPositionValid}");
 
         if (isValidPosition)
         {
@@ -763,19 +836,20 @@ public class RenderRoom : MonoBehaviour
         }
         else if (wasLastPositionValid)
         {
-            
+            Debug.Log($"[RenderRoom] COLLIDER HIT - reverting from ({avatar.position.x:F3},{avatar.position.z:F3}) to ({lastValidPosition.x:F3},{lastValidPosition.z:F3})");
 
             double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
-            if (File.Exists(logFilePath)) 
-            { 
-                File.AppendAllText(logFilePath, 
-                    $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," + 
+            if (File.Exists(logFilePath))
+            {
+                File.AppendAllText(logFilePath,
+                    $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," +
                     $"{avatar.position.x:F3},{avatar.position.z:F3},{avatar.position.y:F3}," +
                     $"{lastValidPosition.x:F3},{lastValidPosition.z:F3},{lastValidPosition.y:F3}\n" ) ;   }
             avatar.position = lastValidPosition;
         }
         else
         {
+            Debug.Log($"[RenderRoom] COLLIDER HIT (no last valid) - recentering");
             RecenterAvatar();
         }
 

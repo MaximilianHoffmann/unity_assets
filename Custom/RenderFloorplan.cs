@@ -221,15 +221,29 @@ public class RenderFloorplan : MonoBehaviour
         {
              transform.position = avatar.position + DefaultOffset;
         }
+    }
+
+    void LateUpdate()
+    {
+        // Early return if avatar not yet initialized
+        if (avatar == null)
+            return;
 
         Vector3 localPos = transform.InverseTransformPoint(avatar.position);
         Vector2 textureCoord = new Vector2(
             ((-localPos.x / 5f) + 1.0f) / 2.0f,
-            ((-localPos.z / 5f) + 1.0f) / 2.0f 
+            ((-localPos.z / 5f) + 1.0f) / 2.0f
         );
-        
-       
-        bool isValidPosition = !_EnableCollider || SampleCollider(textureCoord);
+
+
+        bool colliderResult = SampleCollider(textureCoord);
+        bool isValidPosition = !_EnableCollider || colliderResult;
+
+        Debug.Log($"[RenderFloorplan] EnableCollider={_EnableCollider}, colliderResult={colliderResult}, isValid={isValidPosition}, " +
+                  $"avatarPos=({avatar.position.x:F3},{avatar.position.z:F3}), " +
+                  $"localPos=({localPos.x:F3},{localPos.z:F3}), " +
+                  $"texCoord=({textureCoord.x:F3},{textureCoord.y:F3}), " +
+                  $"colliderNull={_currentCollider == null}, wasLastValid={wasLastPositionValid}");
 
         if (isValidPosition)
         {
@@ -238,19 +252,20 @@ public class RenderFloorplan : MonoBehaviour
         }
         else if (wasLastPositionValid)
         {
-            
+            Debug.Log($"[RenderFloorplan] COLLIDER HIT - reverting from ({avatar.position.x:F3},{avatar.position.z:F3}) to ({lastValidPosition.x:F3},{lastValidPosition.z:F3})");
 
             double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
-            if (File.Exists(logFilePath)) 
-            { 
-                File.AppendAllText(logFilePath, 
-                    $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," + 
+            if (File.Exists(logFilePath))
+            {
+                File.AppendAllText(logFilePath,
+                    $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," +
                     $"{avatar.position.x:F3},{avatar.position.z:F3},{avatar.position.y:F3}," +
                     $"{lastValidPosition.x:F3},{lastValidPosition.z:F3},{lastValidPosition.y:F3}\n" ) ;   }
             avatar.position = lastValidPosition;
         }
         else
         {
+            Debug.Log($"[RenderFloorplan] COLLIDER HIT (no last valid) - recentering");
             RecenterAvatar();
         }
 
@@ -283,15 +298,15 @@ public class RenderFloorplan : MonoBehaviour
     private bool SampleCollider(Vector2 uv)
     {
         if (_currentCollider == null) return false;
-        
+
         // Clamp UV coordinates to [0,1]
         uv.x = Mathf.Clamp01(uv.x);
         uv.y = Mathf.Clamp01(uv.y);
-        
+
         // Convert to grid coordinates
         int x = Mathf.FloorToInt(uv.x * (_currentCollider.GetLength(1) - 1));
         int y = Mathf.FloorToInt(uv.y * (_currentCollider.GetLength(0) - 1));
-        
+
         return _currentCollider[y, x] == 1;
     }
 
