@@ -14,6 +14,7 @@ public class RenderRoom : MonoBehaviour
     private const float PlaneHalfSize = 5f; // Unity plane spans [-5, 5] in local space
 
     private Transform avatar;
+    private Rigidbody avatarBody;
     private Material floorMaterialInstance;
     private MeshRenderer renderer;
     private string logFilePath;
@@ -428,11 +429,15 @@ public class RenderRoom : MonoBehaviour
 
             int width = texture.width;
             int height = texture.height;
+            // GetPixels() is bottom-up (index 0 = bottom row), but the rest of
+            // the system (PIL-loaded collider for heat/feeding, the JSON path
+            // below, and the image itself) is top-down. Flip y on read so the
+            // file-loaded collider matches: result[row 0] = image top row.
             var pixels = texture.GetPixels();
             var result = new int[height, width];
             for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
-                    result[y, x] = (pixels[y * width + x].grayscale > 0.5f) ? 1 : 0;
+                    result[y, x] = (pixels[(height - 1 - y) * width + x].grayscale > 0.5f) ? 1 : 0;
 
             if (Application.isPlaying) Destroy(texture);
             else DestroyImmediate(texture);
@@ -763,9 +768,9 @@ public class RenderRoom : MonoBehaviour
         Vector3 worldPos = transform.TransformPoint(new Vector3(
             DefaultLocalPosition.x * 5f,  
             avatar.position.y,
-            DefaultLocalPosition.z * 5f   
+            DefaultLocalPosition.z * 5f
         ));
-        avatar.position = worldPos;
+        SetAvatarPosition(worldPos);
         Debug.Log($"DefaultLocalPosition {DefaultLocalPosition}");
         Debug.Log($"Recentered avatar to {worldPos}");
         double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
@@ -813,43 +818,37 @@ public class RenderRoom : MonoBehaviour
         if (avatar == null)
             return;
 
-        Vector3 localPos = transform.InverseTransformPoint(avatar.position);
-        Vector2 textureCoord = new Vector2(
-            ((-localPos.x / PlaneHalfSize) + 1.0f) / 2.0f,
-            ((-localPos.z / PlaneHalfSize) + 1.0f) / 2.0f
-        );
+        Vector3 pos = avatar.position;
 
-
-        bool colliderResult = SampleCollider(textureCoord);
-        bool isValidPosition = !_EnableCollider || colliderResult;
-
-        Debug.Log($"[RenderRoom] EnableCollider={_EnableCollider}, colliderResult={colliderResult}, isValid={isValidPosition}, " +
-                  $"avatarPos=({avatar.position.x:F3},{avatar.position.z:F3}), " +
-                  $"localPos=({localPos.x:F3},{localPos.z:F3}), " +
-                  $"texCoord=({textureCoord.x:F3},{textureCoord.y:F3}), " +
-                  $"colliderNull={_currentCollider == null}, wasLastValid={wasLastPositionValid}");
-
-        if (isValidPosition)
+        // A teleport (VRPosition / OnPositionCallback) sets only the Transform,
+        // so the Rigidbody would drag the avatar back. Detect the large jump and
+        // sync the Rigidbody to the teleported position (no body margin: teleport
+        // targets are deliberate). Normal per-frame motion is far smaller.
+        if (wasLastPositionValid && (pos - lastValidPosition).sqrMagnitude > 2500f)
         {
-            lastValidPosition = avatar.position;
+            SetAvatarPosition(pos);
+            lastValidPosition = pos;
+            wasLastPositionValid = true;
+        }
+        else if (!_EnableCollider || IsWalkableWorld(pos))
+        {
+            lastValidPosition = pos;
             wasLastPositionValid = true;
         }
         else if (wasLastPositionValid)
         {
-            Debug.Log($"[RenderRoom] COLLIDER HIT - reverting from ({avatar.position.x:F3},{avatar.position.z:F3}) to ({lastValidPosition.x:F3},{lastValidPosition.z:F3})");
-
-            double unity_time = DateTimeOffset.Now.ToUnixTimeMilliseconds() / 1000d;
-            if (File.Exists(logFilePath))
-            {
-                File.AppendAllText(logFilePath,
-                    $"{unity_time:F3},{PublishVRPosition.LastTimestamp:F3}," +
-                    $"{avatar.position.x:F3},{avatar.position.z:F3},{avatar.position.y:F3}," +
-                    $"{lastValidPosition.x:F3},{lastValidPosition.z:F3},{lastValidPosition.y:F3}\n" ) ;   }
-            avatar.position = lastValidPosition;
+            // The avatar is physics-driven (Rigidbody.MovePosition). Reverting
+            // only the Transform loses to the Rigidbody on the next FixedUpdate
+            // (it drags the Transform back into the wall -> constant jitter), so
+            // we must reposition the Rigidbody itself via SetAvatarPosition.
+            // Slide along the wall when possible instead of dead-reverting.
+            Vector3 resolved;
+            if (TrySlide(lastValidPosition, pos - lastValidPosition, out resolved))
+                lastValidPosition = resolved;
+            SetAvatarPosition(lastValidPosition);
         }
         else
         {
-            Debug.Log($"[RenderRoom] COLLIDER HIT (no last valid) - recentering");
             RecenterAvatar();
         }
 
@@ -877,6 +876,68 @@ public class RenderRoom : MonoBehaviour
         return _currentTexture.GetPixel(x, y);  // Fixed typo: 'ax' to 'x'
     }
 
+    // Reposition the avatar so the correction sticks against the physics body:
+    // set BOTH the Transform and the Rigidbody, and clear residual velocity.
+    private void SetAvatarPosition(Vector3 p)
+    {
+        avatar.position = p;
+        if (avatarBody != null)
+        {
+            avatarBody.position = p;
+            if (!avatarBody.isKinematic)
+            {
+                avatarBody.linearVelocity = Vector3.zero;
+                avatarBody.angularVelocity = Vector3.zero;
+            }
+        }
+    }
+
+    // Walkable test for a WORLD position, with a small body margin (in cells)
+    // so the avatar stays off the brittle 1-pixel boundary cells.
+    private bool IsWalkableWorld(Vector3 worldPos)
+    {
+        if (!_EnableCollider || _currentCollider == null) return true;
+        Vector3 localPos = transform.InverseTransformPoint(worldPos);
+        Vector2 uv = new Vector2(
+            ((-localPos.x / PlaneHalfSize) + 1.0f) / 2.0f,
+            ((-localPos.z / PlaneHalfSize) + 1.0f) / 2.0f);
+        int width = _currentCollider.GetLength(1);
+        int height = _currentCollider.GetLength(0);
+        int cx = Mathf.FloorToInt(Mathf.Clamp01(uv.x) * width);
+        int cy = Mathf.FloorToInt(Mathf.Clamp01(uv.y) * height);
+        const int margin = 4;
+        for (int dy = -margin; dy <= margin; dy += margin)
+            for (int dx = -margin; dx <= margin; dx += margin)
+            {
+                int x = Mathf.Clamp(cx + dx, 0, width - 1);
+                int y = Mathf.Clamp(cy + dy, 0, height - 1);
+                if (_currentCollider[y, x] != 1) return false;
+            }
+        return true;
+    }
+
+    // Find a walkable spot near the attempted move: axis slides first (straight
+    // walls), then angular deflections of the move (diagonal walls).
+    private bool TrySlide(Vector3 from, Vector3 move, out Vector3 result)
+    {
+        Vector3 sx = from + new Vector3(move.x, move.y, 0f);
+        if (IsWalkableWorld(sx)) { result = sx; return true; }
+        Vector3 sz = from + new Vector3(0f, move.y, move.z);
+        if (IsWalkableWorld(sz)) { result = sz; return true; }
+
+        float[] angles = { 30f, -30f, 45f, -45f, 60f, -60f, 75f, -75f };
+        foreach (float deg in angles)
+        {
+            float r = deg * Mathf.Deg2Rad;
+            float c = Mathf.Cos(r), s = Mathf.Sin(r);
+            Vector3 rot = new Vector3(move.x * c - move.z * s, move.y, move.x * s + move.z * c);
+            Vector3 cand = from + rot;
+            if (IsWalkableWorld(cand)) { result = cand; return true; }
+        }
+        result = from;
+        return false;
+    }
+
     private bool SampleCollider(Vector2 uv)
     {
         if (_currentCollider == null) return true;
@@ -901,6 +962,7 @@ public class RenderRoom : MonoBehaviour
             renderer.enabled = false;
         }
         avatar = GameObject.Find("Avatar")?.transform;
+        avatarBody = avatar != null ? avatar.GetComponent<Rigidbody>() : null;
 
 
         string gameObjectName = gameObject.name;
